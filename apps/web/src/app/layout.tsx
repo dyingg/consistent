@@ -1,18 +1,25 @@
 import type { Metadata } from "next";
-import { Raleway } from "next/font/google";
+import { Sora, Archivo } from "next/font/google";
 import { QueryProvider } from "@/lib/query-provider";
 import "./globals.css";
 
-const raleway = Raleway({
-  variable: "--font-sans",
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600"],
+  display: "swap",
+});
+
+const archivo = Archivo({
+  variable: "--font-archivo",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Consistent",
-  description: "Consistent app",
+  description: "Stay on track. See the future.",
 };
 
 export default function RootLayout({
@@ -21,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${raleway.variable} h-full antialiased`}>
+    <html lang="en" className={`${sora.variable} ${archivo.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <QueryProvider>{children}</QueryProvider>
       </body>
