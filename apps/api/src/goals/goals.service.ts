@@ -8,7 +8,7 @@ import { GoalsRepository } from "./goals.repository";
 export interface CreateGoalInput {
   title: string;
   description?: string | null;
-  descriptionContext?: string | null;
+  context?: string | null;
   color?: string | null;
   targetDate?: string | null;
   priority?: number;
@@ -17,7 +17,7 @@ export interface CreateGoalInput {
 export interface UpdateGoalInput {
   title?: string;
   description?: string | null;
-  descriptionContext?: string | null;
+  context?: string | null;
   color?: string | null;
   status?: "active" | "completed" | "paused" | "abandoned";
   targetDate?: string | null;
@@ -37,7 +37,14 @@ export class GoalsService {
   }
 
   async findAll(userId: string, status?: string) {
-    return this.goalsRepo.findByUserId(userId, status);
+    const rows = await this.goalsRepo.findByUserId(userId, status);
+    return rows.map((goal) => ({
+      ...goal,
+      progress:
+        goal.totalTasks > 0
+          ? Math.round((goal.completedTasks / goal.totalTasks) * 100)
+          : 0,
+    }));
   }
 
   async findById(userId: string, goalId: number) {
