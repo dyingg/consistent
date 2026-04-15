@@ -1,14 +1,14 @@
-import { Controller, Get } from "@nestjs/common";
-import { db } from "@consistent/db";
+import { Controller, Get, Inject } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import { Redis } from "ioredis";
+import { DRIZZLE, type DrizzleDB } from "../db";
 import { env } from "../env";
 
 @Controller({ version: "1" })
 export class HealthController {
   private redis: Redis;
 
-  constructor() {
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {
     this.redis = new Redis(env.REDIS_URL);
   }
 
@@ -18,7 +18,7 @@ export class HealthController {
     let redisStatus: "ok" | "error" = "error";
 
     try {
-      await db.execute(sql`SELECT 1`);
+      await this.db.execute(sql`SELECT 1`);
       dbStatus = "ok";
     } catch {
       // db unreachable
