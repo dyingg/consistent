@@ -3,8 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { EVENTS } from "@consistent/realtime";
 import { SchedulingRepository } from "./scheduling.repository";
 import { TasksRepository } from "../tasks/tasks.repository";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 export interface CreateBlockInput {
   taskId: number;
@@ -19,6 +21,7 @@ export class SchedulingService {
   constructor(
     private readonly schedulingRepo: SchedulingRepository,
     private readonly tasksRepo: TasksRepository,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   private async verifyBlockOwnership(userId: string, blockId: number) {
@@ -42,7 +45,7 @@ export class SchedulingService {
       throw new BadRequestException("Start time must be before end time");
     }
 
-    return this.schedulingRepo.createBlock({
+    const block = await this.schedulingRepo.createBlock({
       userId,
       taskId: data.taskId,
       startTime,
@@ -50,6 +53,8 @@ export class SchedulingService {
       scheduledBy: data.scheduledBy,
       scheduleRunId: data.scheduleRunId,
     });
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId: block.id });
+    return block;
   }
 
   async getBlocksForRange(userId: string, start: Date, end: Date) {
@@ -69,11 +74,15 @@ export class SchedulingService {
     status: "planned" | "confirmed" | "completed" | "missed" | "moved",
   ) {
     await this.verifyBlockOwnership(userId, blockId);
-    return this.schedulingRepo.updateBlockStatus(blockId, status);
+    const updated = await this.schedulingRepo.updateBlockStatus(blockId, status);
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
+    return updated;
   }
 
   async deleteBlock(userId: string, blockId: number) {
     await this.verifyBlockOwnership(userId, blockId);
-    return this.schedulingRepo.deleteBlock(blockId);
+    const deleted = await this.schedulingRepo.deleteBlock(blockId);
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
+    return deleted;
   }
 }
