@@ -57,7 +57,36 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "module": "commonjs",
+            "moduleResolution": "node",
+            "resolvePackageJsonExports": false,
+            "esModuleInterop": true,
+            "isolatedModules": true,
+            "declaration": false,
+            "emitDecoratorMetadata": true,
+            "experimentalDecorators": true,
+            "allowSyntheticDefaultImports": true,
+            "target": "ES2023",
+            "sourceMap": true,
+            "skipLibCheck": true,
+            "strictNullChecks": true,
+            "strictPropertyInitialization": false,
+            "forceConsistentCasingInFileNames": true,
+            "noImplicitAny": true,
+            "strictBindCallApply": true,
+            "noFallthroughCasesInSwitch": true,
+            "lib": ["ES2023"]
+          }
+        }
+      ]
+    },
+    "moduleNameMapper": {
+      "^@consistent/db/schema$": "<rootDir>/../../../packages/db/dist/schema/index.js",
+      "^@consistent/db$": "<rootDir>/../../../packages/db/dist/index.js"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
