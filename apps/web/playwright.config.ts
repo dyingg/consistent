@@ -14,7 +14,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "cd ../.. && set -a && source .env && set +a && node apps/api/dist/main.js",
+        "cd ../.. && node --env-file=.env apps/api/dist/main.js",
       url: "http://localhost:3001/v1/health",
       reuseExistingServer: !process.env.CI,
       timeout: 15000,
