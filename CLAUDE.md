@@ -241,4 +241,7 @@ git restore --staged :/ && git add "path/to/file1" "path/to/file2" && git commit
 git commit -m "<scoped message>" -- path/to/file1 path/to/file2
 ```
 
+#IMPORTANT - ATOMIC COMMITS
+
+Perform atomic commits!
 Never use `git add .` or `git add -A`. Never batch multiple unrelated changes into one commit. Never wait until the end of a task to commit — commit as you go.
