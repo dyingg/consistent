@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-typecheck-build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: consistent
+          POSTGRES_PASSWORD: consistent
+          POSTGRES_DB: consistent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+        env:
+          DATABASE_URL: postgresql://consistent:consistent@localhost:5432/consistent
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-characters
+          BETTER_AUTH_URL: http://localhost:3001
+          WEB_ORIGIN: http://localhost:3000
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
