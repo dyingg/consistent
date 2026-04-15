@@ -45,6 +45,15 @@ export class SchedulingRepository {
     return rows[0] ?? null;
   }
 
+  async findBlockById(id: number) {
+    const rows = await this.db
+      .select()
+      .from(scheduledBlocks)
+      .where(eq(scheduledBlocks.id, id))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
   async deleteBlock(id: number) {
     const rows = await this.db
       .delete(scheduledBlocks)
