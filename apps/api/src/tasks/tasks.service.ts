@@ -5,15 +5,17 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { tasks, taskDependencies } from "@consistent/db/schema";
+import { EVENTS } from "@consistent/realtime";
 import { TasksRepository } from "./tasks.repository";
 import { DependenciesRepository } from "./dependencies.repository";
 import { GoalsRepository } from "../goals/goals.repository";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { DRIZZLE, type DrizzleDB } from "../db";
 
 export interface CreateTaskInput {
   title: string;
   description?: string | null;
-  descriptionContext?: string | null;
+  context?: string | null;
   estimatedMinutes?: number | null;
   earliestStart?: Date | null;
   deadline?: Date | null;
@@ -25,7 +27,7 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   title?: string;
   description?: string | null;
-  descriptionContext?: string | null;
+  context?: string | null;
   status?:
     | "pending"
     | "ready"
@@ -63,6 +65,7 @@ export class TasksService {
     private readonly tasksRepo: TasksRepository,
     private readonly depsRepo: DependenciesRepository,
     private readonly goalsRepo: GoalsRepository,
+    private readonly realtime: RealtimeGateway,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
@@ -90,7 +93,10 @@ export class TasksService {
       throw new BadRequestException("Title is required");
     }
 
-    return this.tasksRepo.create({ ...data, title, userId, goalId });
+    const task = await this.tasksRepo.create({ ...data, title, userId, goalId });
+    this.realtime.broadcastToUser(userId, EVENTS.TASK_UPDATED, { taskId: task.id, goalId });
+    this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId });
+    return task;
   }
 
   async bulkCreate(userId: string, goalId: number, input: BulkCreateInput) {
@@ -124,13 +130,13 @@ export class TasksService {
       }
     }
 
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const taskRows = input.tasks.map((t) => ({
         goalId,
         userId,
         title: t.title.trim(),
         description: t.description,
-        descriptionContext: t.descriptionContext,
+        context: t.context,
         estimatedMinutes: t.estimatedMinutes,
         earliestStart: t.earliestStart,
         deadline: t.deadline,
@@ -176,6 +182,9 @@ export class TasksService {
 
       return { tasks: insertedTasks, dependencies: insertedDeps };
     });
+
+    this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId });
+    return result;
   }
 
   async findAllForGoal(userId: string, goalId: number) {
@@ -188,7 +197,7 @@ export class TasksService {
   }
 
   async update(userId: string, taskId: number, data: UpdateTaskInput) {
-    await this.verifyTaskOwnership(userId, taskId);
+    const task = await this.verifyTaskOwnership(userId, taskId);
 
     if (data.title !== undefined) {
       const title = data.title.trim();
@@ -206,12 +215,18 @@ export class TasksService {
       updateData.completedAt = null;
     }
 
-    return this.tasksRepo.update(taskId, updateData as any);
+    const updated = await this.tasksRepo.update(taskId, updateData as any);
+    this.realtime.broadcastToUser(userId, EVENTS.TASK_UPDATED, { taskId, goalId: task.goalId });
+    this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId: task.goalId });
+    return updated;
   }
 
   async delete(userId: string, taskId: number) {
-    await this.verifyTaskOwnership(userId, taskId);
-    return this.tasksRepo.delete(taskId);
+    const task = await this.verifyTaskOwnership(userId, taskId);
+    const deleted = await this.tasksRepo.delete(taskId);
+    this.realtime.broadcastToUser(userId, EVENTS.TASK_UPDATED, { taskId, goalId: task.goalId });
+    this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId: task.goalId });
+    return deleted;
   }
 
   async findReadyForUser(userId: string) {
