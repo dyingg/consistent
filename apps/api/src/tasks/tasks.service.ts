@@ -202,7 +202,7 @@ export class TasksService {
 
     if (data.status === "completed") {
       updateData.completedAt = new Date();
-    } else if (data.status && data.status !== "completed") {
+    } else if (data.status) {
       updateData.completedAt = null;
     }
 
