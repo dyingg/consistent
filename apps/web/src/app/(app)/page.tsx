@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
+import { useRealtime } from "@/lib/use-realtime";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LogOut,
@@ -17,23 +20,34 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-interface Task {
-  id: string;
+interface GoalData {
+  id: number;
   title: string;
-  timeframe: "now" | "today" | "tomorrow";
-  completed: boolean;
-  goalId: string;
-  time?: string;
-  startTime?: string;
-  endTime?: string;
+  color: string | null;
+  progress: number;
+  totalTasks: number;
+  completedTasks: number;
 }
 
-interface Goal {
-  id: string;
-  title: string;
-  color: string;
-  progress: number;
-  tasks: Task[];
+interface EnrichedBlock {
+  id: number;
+  taskId: number;
+  startTime: string;
+  endTime: string;
+  status: string;
+  scheduledBy: string;
+  createdAt: string;
+  task: {
+    id: number;
+    title: string;
+    status: string;
+    goalId: number;
+  };
+  goal: {
+    id: number;
+    title: string;
+    color: string | null;
+  };
 }
 
 interface ChatMessage {
@@ -43,182 +57,8 @@ interface ChatMessage {
 }
 
 // ---------------------------------------------------------------------------
-// Static demo data
+// Static data (assistant only)
 // ---------------------------------------------------------------------------
-
-const goals: Goal[] = [
-  {
-    id: "g1",
-    title: "Learn Spanish",
-    color: "#0a84ff",
-    progress: 42,
-    tasks: [
-      {
-        id: "t1",
-        title: "Complete Duolingo lesson",
-        timeframe: "now",
-        completed: false,
-        goalId: "g1",
-        startTime: "9:00 AM",
-        endTime: "9:15 AM",
-      },
-      {
-        id: "t2",
-        title: "Review 20 flashcards",
-        timeframe: "today",
-        completed: true,
-        goalId: "g1",
-        time: "10:00 AM",
-      },
-      {
-        id: "t3",
-        title: "Watch Spanish YouTube video",
-        timeframe: "today",
-        completed: false,
-        goalId: "g1",
-        time: "2:00 PM",
-      },
-      {
-        id: "t4",
-        title: "Practice speaking with AI",
-        timeframe: "today",
-        completed: false,
-        goalId: "g1",
-        time: "5:00 PM",
-      },
-      {
-        id: "t5",
-        title: "Write 5 sentences",
-        timeframe: "tomorrow",
-        completed: false,
-        goalId: "g1",
-      },
-      {
-        id: "t6",
-        title: "Listen to podcast",
-        timeframe: "tomorrow",
-        completed: false,
-        goalId: "g1",
-      },
-    ],
-  },
-  {
-    id: "g2",
-    title: "Run a Marathon",
-    color: "#30d158",
-    progress: 28,
-    tasks: [
-      {
-        id: "t7",
-        title: "Stretch for 10 minutes",
-        timeframe: "today",
-        completed: false,
-        goalId: "g2",
-        time: "7:00 AM",
-      },
-      {
-        id: "t8",
-        title: "Run 5km easy pace",
-        timeframe: "today",
-        completed: false,
-        goalId: "g2",
-        time: "7:30 AM",
-      },
-      {
-        id: "t9",
-        title: "Log nutrition",
-        timeframe: "today",
-        completed: true,
-        goalId: "g2",
-        time: "12:00 PM",
-      },
-      {
-        id: "t10",
-        title: "Rest day \u2014 light yoga",
-        timeframe: "tomorrow",
-        completed: false,
-        goalId: "g2",
-      },
-    ],
-  },
-  {
-    id: "g3",
-    title: "Side Project",
-    color: "#bf5af2",
-    progress: 65,
-    tasks: [
-      {
-        id: "t11",
-        title: "Fix auth bug",
-        timeframe: "today",
-        completed: false,
-        goalId: "g3",
-        time: "9:00 AM",
-      },
-      {
-        id: "t12",
-        title: "Design pricing page",
-        timeframe: "today",
-        completed: false,
-        goalId: "g3",
-        time: "3:00 PM",
-      },
-      {
-        id: "t13",
-        title: "Write 3 API endpoints",
-        timeframe: "tomorrow",
-        completed: false,
-        goalId: "g3",
-      },
-    ],
-  },
-  {
-    id: "g4",
-    title: "Read 24 Books",
-    color: "#ff9f0a",
-    progress: 50,
-    tasks: [
-      {
-        id: "t14",
-        title: "Read 30 pages",
-        timeframe: "today",
-        completed: false,
-        goalId: "g4",
-        time: "9:00 PM",
-      },
-      {
-        id: "t15",
-        title: "Write book notes",
-        timeframe: "tomorrow",
-        completed: false,
-        goalId: "g4",
-      },
-    ],
-  },
-  {
-    id: "g5",
-    title: "Meditation",
-    color: "#64d2ff",
-    progress: 80,
-    tasks: [
-      {
-        id: "t16",
-        title: "Morning meditation 10 min",
-        timeframe: "today",
-        completed: true,
-        goalId: "g5",
-        time: "6:30 AM",
-      },
-      {
-        id: "t17",
-        title: "Evening reflection",
-        timeframe: "tomorrow",
-        completed: false,
-        goalId: "g5",
-      },
-    ],
-  },
-];
 
 const aiResponses = [
   "Great job staying consistent! You've completed 3 tasks already today. Keep the momentum going.",
@@ -233,19 +73,19 @@ const aiResponses = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getGoalById(id: string): Goal | undefined {
-  return goals.find((g) => g.id === id);
-}
-
-function getAllTasks(): Task[] {
-  return goals.flatMap((g) => g.tasks);
-}
-
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
+  });
+}
+
+function formatTime(isoString: string): string {
+  return new Date(isoString).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   });
 }
 
@@ -296,70 +136,27 @@ function getCalendarGrid(year: number, month: number): CalendarDay[] {
   return days;
 }
 
-// Scheduled tasks keyed by date string — demo data spread across the next 2 weeks
-const SCHEDULED_TASKS: Record<
-  string,
-  Array<{ id: string; title: string; goalId: string; time?: string }>
-> = (() => {
-  const today = new Date();
-  const key = (offset: number) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + offset);
-    return toDateKey(d);
-  };
+// ---------------------------------------------------------------------------
+// Date range helpers
+// ---------------------------------------------------------------------------
 
-  return {
-    [key(1)]: [
-      { id: "s1", title: "Write 5 sentences", goalId: "g1", time: "9:00 AM" },
-      { id: "s2", title: "Listen to podcast", goalId: "g1", time: "12:00 PM" },
-      { id: "s3", title: "Rest day — light yoga", goalId: "g2", time: "7:00 AM" },
-      { id: "s4", title: "Write 3 API endpoints", goalId: "g3", time: "2:00 PM" },
-      { id: "s5", title: "Write book notes", goalId: "g4", time: "8:00 PM" },
-      { id: "s6", title: "Evening reflection", goalId: "g5", time: "9:30 PM" },
-    ],
-    [key(2)]: [
-      { id: "s7", title: "Grammar practice", goalId: "g1", time: "10:00 AM" },
-      { id: "s8", title: "Run 8km tempo", goalId: "g2", time: "6:30 AM" },
-      { id: "s9", title: "Read 30 pages", goalId: "g4", time: "9:00 PM" },
-    ],
-    [key(4)]: [
-      { id: "s10", title: "Spanish conversation class", goalId: "g1", time: "11:00 AM" },
-      { id: "s11", title: "Long run 15km", goalId: "g2", time: "6:00 AM" },
-      { id: "s12", title: "Deploy MVP", goalId: "g3", time: "3:00 PM" },
-      { id: "s13", title: "Meditation 15 min", goalId: "g5", time: "7:00 AM" },
-    ],
-    [key(6)]: [
-      { id: "s14", title: "Vocabulary review", goalId: "g1", time: "10:00 AM" },
-      { id: "s15", title: "Cross training", goalId: "g2", time: "7:00 AM" },
-    ],
-    [key(8)]: [
-      { id: "s16", title: "Watch Spanish movie", goalId: "g1", time: "7:00 PM" },
-      { id: "s17", title: "Speed intervals", goalId: "g2", time: "6:30 AM" },
-      { id: "s18", title: "User testing", goalId: "g3", time: "2:00 PM" },
-      { id: "s19", title: "Read 30 pages", goalId: "g4", time: "9:00 PM" },
-      { id: "s20", title: "Guided meditation", goalId: "g5", time: "7:00 AM" },
-    ],
-    [key(11)]: [
-      { id: "s21", title: "Practice with tutor", goalId: "g1", time: "4:00 PM" },
-      { id: "s22", title: "Half marathon practice", goalId: "g2", time: "6:00 AM" },
-    ],
-    [key(13)]: [
-      { id: "s23", title: "Write blog post", goalId: "g3", time: "10:00 AM" },
-      { id: "s24", title: "Book club meeting", goalId: "g4", time: "6:00 PM" },
-    ],
-    [key(15)]: [
-      { id: "s25", title: "Spanish test prep", goalId: "g1", time: "9:00 AM" },
-      { id: "s26", title: "Recovery run 5km", goalId: "g2", time: "7:00 AM" },
-      { id: "s27", title: "Ship feature", goalId: "g3", time: "1:00 PM" },
-    ],
-  };
-})();
+function startOfDay(date: Date): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function endOfDay(date: Date): string {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+}
 
 // ---------------------------------------------------------------------------
 // Motion
 // ---------------------------------------------------------------------------
 
-const easeOutExpo: [number, number, number, number] = [0.16, 1, 0.3, 1];
+const easeOutExpo = [0.16, 1, 0.3, 1];
 
 const containerVariants = {
   hidden: {},
@@ -410,32 +207,54 @@ function SectionLabel({
 // ---------------------------------------------------------------------------
 
 function NowSection() {
-  const nowTask = getAllTasks().find((t) => t.timeframe === "now");
-  const [secondsLeft, setSecondsLeft] = useState(15 * 60);
+  const { data: block, isLoading } = useQuery({
+    queryKey: ["schedule", "now"],
+    queryFn: () => api.schedule.now(),
+    refetchInterval: 30_000,
+  });
+
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const [completed, setCompleted] = useState(false);
+  const queryClient = useQueryClient();
+
+  const completeMutation = useMutation({
+    mutationFn: (taskId: number) =>
+      api.tasks.update(taskId, { status: "completed" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schedule", "now"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule", "today"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
 
   useEffect(() => {
-    if (completed) return;
-    const interval = setInterval(() => {
-      setSecondsLeft((s) => (s > 0 ? s - 1 : 0));
-    }, 1000);
+    if (!block) return;
+    const end = new Date(block.endTime).getTime();
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.floor((end - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [completed]);
+  }, [block]);
 
-  if (!nowTask) return null;
+  if (isLoading) return null;
+  if (!block) return null;
 
-  const goal = getGoalById(nowTask.goalId);
-  if (!goal) return null;
-
-  const totalSeconds = 15 * 60;
+  const start = new Date(block.startTime).getTime();
+  const end = new Date(block.endTime).getTime();
+  const totalSeconds = Math.floor((end - start) / 1000);
   const elapsed = totalSeconds - secondsLeft;
-  const progress = (elapsed / totalSeconds) * 100;
+  const progress = totalSeconds > 0 ? (elapsed / totalSeconds) * 100 : 0;
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
 
+  const goalColor = block.goal.color ?? "oklch(50% 0.15 270)";
+
   return (
     <div>
-      <SectionLabel right={`${nowTask.startTime} – ${nowTask.endTime}`}>
+      <SectionLabel right={`${formatTime(block.startTime)} – ${formatTime(block.endTime)}`}>
         Now
       </SectionLabel>
 
@@ -451,11 +270,16 @@ function NowSection() {
       <div className="mt-5 flex items-start gap-3.5">
         <button
           type="button"
-          onClick={() => setCompleted(!completed)}
+          onClick={() => {
+            setCompleted(!completed);
+            if (!completed) {
+              completeMutation.mutate(block.task.id);
+            }
+          }}
           className="mt-0.5 w-[1.375rem] h-[1.375rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-all duration-200"
           style={{
-            borderColor: goal.color,
-            backgroundColor: completed ? goal.color : "transparent",
+            borderColor: goalColor,
+            backgroundColor: completed ? goalColor : "transparent",
           }}
         >
           {completed && (
@@ -473,15 +297,15 @@ function NowSection() {
               completed ? "line-through opacity-40" : ""
             }`}
           >
-            {nowTask.title}
+            {block.task.title}
           </p>
           <div className="flex items-center gap-1.5 mt-1">
             <div
               className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: goal.color }}
+              style={{ backgroundColor: goalColor }}
             />
             <span className="text-[0.8125rem] text-muted-foreground">
-              {goal.title}
+              {block.goal.title}
             </span>
           </div>
         </div>
@@ -491,7 +315,7 @@ function NowSection() {
       <div className="mt-6 h-[3px] rounded-full bg-muted overflow-hidden">
         <motion.div
           className="h-full rounded-full"
-          style={{ backgroundColor: goal.color }}
+          style={{ backgroundColor: goalColor }}
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.8, ease: easeOutExpo }}
@@ -506,89 +330,114 @@ function NowSection() {
 // ---------------------------------------------------------------------------
 
 function TodaySection() {
-  const todayTasks = getAllTasks().filter((t) => t.timeframe === "today");
-  const [taskStates, setTaskStates] = useState<Record<string, boolean>>(() => {
-    const map: Record<string, boolean> = {};
-    for (const t of todayTasks) {
-      map[t.id] = t.completed;
-    }
-    return map;
+  const today = useMemo(() => new Date(), []);
+  const { data: blocks = [] } = useQuery({
+    queryKey: ["schedule", "today"],
+    queryFn: () => api.schedule.blocks(startOfDay(today), endOfDay(today)),
   });
 
-  const completedCount = Object.values(taskStates).filter(Boolean).length;
-  const totalCount = todayTasks.length;
+  const queryClient = useQueryClient();
+  const [localCompleted, setLocalCompleted] = useState<Record<number, boolean>>(
+    {},
+  );
 
-  const toggleTask = (id: string) => {
-    setTaskStates((prev) => ({ ...prev, [id]: !prev[id] }));
+  const completeMutation = useMutation({
+    mutationFn: ({ taskId, completed }: { taskId: number; completed: boolean }) =>
+      api.tasks.update(taskId, {
+        status: completed ? "completed" : "scheduled",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schedule", "today"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule", "now"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+
+  const toggleTask = (taskId: number) => {
+    const current = localCompleted[taskId] ?? false;
+    const newState = !current;
+    setLocalCompleted((prev) => ({ ...prev, [taskId]: newState }));
+    completeMutation.mutate({ taskId, completed: newState });
   };
+
+  const completedCount = blocks.filter(
+    (b: EnrichedBlock) =>
+      (localCompleted[b.task.id] ?? b.task.status === "completed"),
+  ).length;
 
   return (
     <div>
-      <SectionLabel right={`${completedCount}/${totalCount}`}>
+      <SectionLabel right={`${completedCount}/${blocks.length}`}>
         Today
       </SectionLabel>
       <p className="text-[0.8125rem] text-muted-foreground mb-3">
-        {formatDate(new Date())}
+        {formatDate(today)}
       </p>
 
-      <div className="flex flex-col">
-        {todayTasks.map((task) => {
-          const goal = getGoalById(task.goalId);
-          const isCompleted = taskStates[task.id] ?? false;
+      {blocks.length === 0 ? (
+        <p className="text-[0.875rem] text-muted-foreground/50 italic">
+          No tasks scheduled for today
+        </p>
+      ) : (
+        <div className="flex flex-col">
+          {blocks.map((block: EnrichedBlock) => {
+            const isCompleted =
+              localCompleted[block.task.id] ??
+              block.task.status === "completed";
+            const goalColor = block.goal.color ?? "oklch(35% 0 270)";
 
-          return (
-            <div
-              key={task.id}
-              onClick={() => toggleTask(task.id)}
-              className={`flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
-                isCompleted ? "opacity-40" : ""
-              }`}
-            >
-              {/* Time */}
-              <span
-                className="text-[0.75rem] w-[4.5rem] flex-shrink-0 tabular-nums"
-                style={{ color: "oklch(40% 0.006 270)" }}
-              >
-                {task.time}
-              </span>
-
-              {/* Color dot */}
+            return (
               <div
-                className="w-[6px] h-[6px] rounded-full flex-shrink-0"
-                style={{ backgroundColor: goal?.color ?? "oklch(35% 0 270)" }}
-              />
-
-              {/* Checkbox */}
-              <div
-                className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150"
-                style={{
-                  borderColor: goal?.color ?? "oklch(35% 0 270)",
-                  backgroundColor: isCompleted
-                    ? goal?.color ?? "oklch(35% 0 270)"
-                    : "transparent",
-                }}
-              >
-                {isCompleted && (
-                  <Check
-                    size={10}
-                    strokeWidth={3}
-                    className="text-background"
-                  />
-                )}
-              </div>
-
-              {/* Title */}
-              <span
-                className={`text-[0.9375rem] text-foreground flex-1 ${
-                  isCompleted ? "line-through" : ""
+                key={block.id}
+                onClick={() => toggleTask(block.task.id)}
+                className={`flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
+                  isCompleted ? "opacity-40" : ""
                 }`}
               >
-                {task.title}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+                {/* Time */}
+                <span
+                  className="text-[0.75rem] w-[4.5rem] flex-shrink-0 tabular-nums"
+                  style={{ color: "oklch(40% 0.006 270)" }}
+                >
+                  {formatTime(block.startTime)}
+                </span>
+
+                {/* Color dot */}
+                <div
+                  className="w-[6px] h-[6px] rounded-full flex-shrink-0"
+                  style={{ backgroundColor: goalColor }}
+                />
+
+                {/* Checkbox */}
+                <div
+                  className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150"
+                  style={{
+                    borderColor: goalColor,
+                    backgroundColor: isCompleted ? goalColor : "transparent",
+                  }}
+                >
+                  {isCompleted && (
+                    <Check
+                      size={10}
+                      strokeWidth={3}
+                      className="text-background"
+                    />
+                  )}
+                </div>
+
+                {/* Title */}
+                <span
+                  className={`text-[0.9375rem] text-foreground flex-1 ${
+                    isCompleted ? "line-through" : ""
+                  }`}
+                >
+                  {block.task.title}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -598,6 +447,13 @@ function TodaySection() {
 // ---------------------------------------------------------------------------
 
 function GoalsSection() {
+  const { data: goalsData = [] } = useQuery({
+    queryKey: ["goals"],
+    queryFn: () => api.goals.list("active"),
+  });
+
+  if (goalsData.length === 0) return null;
+
   return (
     <div>
       <SectionLabel>Goals</SectionLabel>
@@ -606,41 +462,44 @@ function GoalsSection() {
         className="-mx-5 px-5 flex gap-3 overflow-x-auto pb-1"
         style={{ scrollbarWidth: "none" }}
       >
-        {goals.map((goal, i) => (
-          <div
-            key={goal.id}
-            title={goal.title}
-            className="flex-shrink-0 w-[136px] rounded-xl p-4"
-            style={{
-              border: `1px solid color-mix(in oklch, ${goal.color} 15%, transparent)`,
-            }}
-          >
-            <span className="text-[0.8125rem] text-foreground/85 truncate block leading-tight">
-              {goal.title}
-            </span>
-
-            <p
-              className="text-[1.125rem] font-semibold tabular-nums mt-2.5 leading-none"
-              style={{ color: goal.color }}
+        {goalsData.map((goal: GoalData, i: number) => {
+          const color = goal.color ?? "oklch(50% 0.15 270)";
+          return (
+            <div
+              key={goal.id}
+              title={goal.title}
+              className="flex-shrink-0 w-[136px] rounded-xl p-4"
+              style={{
+                border: `1px solid color-mix(in oklch, ${color} 15%, transparent)`,
+              }}
             >
-              {goal.progress}%
-            </p>
+              <span className="text-[0.8125rem] text-foreground/85 truncate block leading-tight">
+                {goal.title}
+              </span>
 
-            <div className="mt-3 h-[3px] rounded-full bg-muted overflow-hidden">
-              <motion.div
-                className="h-full rounded-full"
-                style={{ backgroundColor: goal.color }}
-                initial={{ width: 0 }}
-                animate={{ width: `${goal.progress}%` }}
-                transition={{
-                  duration: 0.8,
-                  delay: 0.2 + i * 0.05,
-                  ease: easeOutExpo,
-                }}
-              />
+              <p
+                className="text-[1.125rem] font-semibold tabular-nums mt-2.5 leading-none"
+                style={{ color }}
+              >
+                {goal.progress}%
+              </p>
+
+              <div className="mt-3 h-[3px] rounded-full bg-muted overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${goal.progress}%` }}
+                  transition={{
+                    duration: 0.8,
+                    delay: 0.2 + i * 0.05,
+                    ease: easeOutExpo,
+                  }}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -663,12 +522,39 @@ function ScheduleSection() {
   const [viewMonth, setViewMonth] = useState(tomorrow.getMonth());
   const [viewYear, setViewYear] = useState(tomorrow.getFullYear());
 
+  // Compute the range for the visible calendar grid
+  const calendarRange = useMemo(() => {
+    const first = new Date(viewYear, viewMonth, 1);
+    let startOffset = first.getDay() - 1;
+    if (startOffset < 0) startOffset = 6;
+    const start = new Date(viewYear, viewMonth, 1 - startOffset);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 42);
+    return { start: start.toISOString(), end: end.toISOString() };
+  }, [viewYear, viewMonth]);
+
+  const { data: blocks = [] } = useQuery({
+    queryKey: ["schedule", "blocks", viewYear, viewMonth],
+    queryFn: () => api.schedule.blocks(calendarRange.start, calendarRange.end),
+  });
+
+  // Group blocks by date key
+  const blocksByDate = useMemo(() => {
+    const map: Record<string, EnrichedBlock[]> = {};
+    for (const block of blocks as EnrichedBlock[]) {
+      const key = toDateKey(new Date(block.startTime));
+      if (!map[key]) map[key] = [];
+      map[key].push(block);
+    }
+    return map;
+  }, [blocks]);
+
   const calendarDays = useMemo(
     () => getCalendarGrid(viewYear, viewMonth),
     [viewYear, viewMonth],
   );
 
-  const selectedTasks = SCHEDULED_TASKS[toDateKey(selectedDate)] ?? [];
+  const selectedTasks = blocksByDate[toDateKey(selectedDate)] ?? [];
 
   const goToPrevMonth = () => {
     setViewMonth((m) => {
@@ -716,29 +602,25 @@ function ScheduleSection() {
 
           {selectedTasks.length > 0 ? (
             <div className="flex flex-col gap-2">
-              {selectedTasks.map((task) => {
-                const goal = getGoalById(task.goalId);
+              {selectedTasks.map((block: EnrichedBlock) => {
+                const goalColor = block.goal.color ?? "oklch(35% 0 270)";
                 return (
                   <div
-                    key={task.id}
+                    key={block.id}
                     className="flex items-center gap-3 py-1.5"
                   >
-                    {task.time && (
-                      <span
-                        className="text-[0.75rem] w-[4.5rem] flex-shrink-0 tabular-nums"
-                        style={{ color: "oklch(40% 0.006 270)" }}
-                      >
-                        {task.time}
-                      </span>
-                    )}
+                    <span
+                      className="text-[0.75rem] w-[4.5rem] flex-shrink-0 tabular-nums"
+                      style={{ color: "oklch(40% 0.006 270)" }}
+                    >
+                      {formatTime(block.startTime)}
+                    </span>
                     <div
                       className="w-[6px] h-[6px] rounded-full flex-shrink-0"
-                      style={{
-                        backgroundColor: goal?.color ?? "oklch(35% 0 270)",
-                      }}
+                      style={{ backgroundColor: goalColor }}
                     />
                     <span className="text-[0.875rem] text-foreground/80">
-                      {task.title}
+                      {block.task.title}
                     </span>
                   </div>
                 );
@@ -792,15 +674,15 @@ function ScheduleSection() {
           <div className="grid grid-cols-7">
             {calendarDays.map((calDay, i) => {
               const key = toDateKey(calDay.date);
-              const dayTasks = SCHEDULED_TASKS[key] ?? [];
+              const dayBlocks = blocksByDate[key] ?? [];
               const isSelected = isSameDay(calDay.date, selectedDate);
               const isTodayCell = isDayToday(calDay.date);
 
               // Unique goal colors for indicator dots
               const goalColors = [
                 ...new Set(
-                  dayTasks
-                    .map((t) => getGoalById(t.goalId)?.color)
+                  dayBlocks
+                    .map((b: EnrichedBlock) => b.goal.color)
                     .filter(Boolean),
                 ),
               ] as string[];
@@ -1087,6 +969,9 @@ function ProfileDropdown({
 export default function HomePage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
+
+  // Connect realtime for live updates
+  useRealtime();
 
   useEffect(() => {
     if (!isPending && !session) {
