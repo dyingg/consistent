@@ -14,18 +14,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Only apply to tables that have an updated_at column
 CREATE TRIGGER trg_tasks_updated_at
   BEFORE UPDATE ON tasks
-  FOR EACH ROW
-  EXECUTE FUNCTION set_updated_at();
-
-CREATE TRIGGER trg_goals_updated_at
-  BEFORE UPDATE ON goals
-  FOR EACH ROW
-  EXECUTE FUNCTION set_updated_at();
-
-CREATE TRIGGER trg_scheduled_blocks_updated_at
-  BEFORE UPDATE ON scheduled_blocks
   FOR EACH ROW
   EXECUTE FUNCTION set_updated_at();
 
