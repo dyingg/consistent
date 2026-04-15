@@ -223,7 +223,16 @@ pnpm format:check               # Check without writing
 
 ## Git Commit Convention
 
-Atomic commits only. List each file path explicitly:
+**Atomic commits only. Commit after every logical unit of work, not at the end of a session.**
+
+This is critical — parallel sessions may be running on the same branch. Batching changes risks merge conflicts and makes rollbacks impossible. Each commit should be self-contained and deployable.
+
+Examples of logical units:
+- Installing a dependency → commit `package.json` + `pnpm-lock.yaml`
+- Updating a theme/config → commit the config files together
+- Rewriting a single page → commit that page file
+
+List each file path explicitly:
 ```bash
 # New files
 git restore --staged :/ && git add "path/to/file1" "path/to/file2" && git commit -m "<scoped message>"
@@ -232,4 +241,4 @@ git restore --staged :/ && git add "path/to/file1" "path/to/file2" && git commit
 git commit -m "<scoped message>" -- path/to/file1 path/to/file2
 ```
 
-Never use `git add .` or `git add -A`.
+Never use `git add .` or `git add -A`. Never batch multiple unrelated changes into one commit. Never wait until the end of a task to commit — commit as you go.

@@ -7,17 +7,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signUp } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -55,64 +44,116 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Sign Up</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            {error && (
-              <p className="text-sm text-red-500">{error}</p>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" {...register("name")} placeholder="Your name" />
-              {errors.name && (
-                <p className="text-sm text-red-500">{errors.name.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                {...register("email")}
-                placeholder="you@example.com"
-              />
-              {errors.email && (
-                <p className="text-sm text-red-500">{errors.email.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                {...register("password")}
-                placeholder="At least 8 characters"
-              />
-              {errors.password && (
-                <p className="text-sm text-red-500">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Signing up..." : "Sign Up"}
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/sign-in" className="underline">
-                Sign in
-              </Link>
+    <div className="flex min-h-screen flex-col bg-black">
+      <header className="px-8 py-6">
+        <span className="text-[15px] font-semibold tracking-tight text-[#fafafa]">
+          Consistent
+        </span>
+      </header>
+
+      <main className="flex flex-1 flex-col items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1
+              className="text-[32px] font-semibold text-[#fafafa]"
+              style={{ letterSpacing: "-0.03em" }}
+            >
+              Create your account
+            </h1>
+            <p className="mt-2 text-[14px] text-[#888]">
+              Get started in seconds
             </p>
-          </CardFooter>
-        </form>
-      </Card>
+          </div>
+
+          <div className="rounded-lg border border-white/[0.1] p-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+              {error && (
+                <div className="rounded-md border border-[rgba(255,68,68,0.15)] bg-[rgba(255,68,68,0.08)] px-3 py-2.5 text-[13px] text-[#ff4444]">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="name"
+                  className="mb-1.5 block text-[13px] font-medium text-[#888]"
+                >
+                  Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  {...register("name")}
+                  placeholder="Your name"
+                  className="w-full rounded-md border border-white/[0.1] bg-transparent px-3 py-2.5 text-[14px] text-[#fafafa] placeholder:text-[#444] outline-none transition-colors focus:border-white/[0.3]"
+                />
+                {errors.name && (
+                  <p className="mt-1 text-[13px] text-[#ff4444]">
+                    {errors.name.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="email"
+                  className="mb-1.5 block text-[13px] font-medium text-[#888]"
+                >
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  {...register("email")}
+                  placeholder="you@example.com"
+                  className="w-full rounded-md border border-white/[0.1] bg-transparent px-3 py-2.5 text-[14px] text-[#fafafa] placeholder:text-[#444] outline-none transition-colors focus:border-white/[0.3]"
+                />
+                {errors.email && (
+                  <p className="mt-1 text-[13px] text-[#ff4444]">
+                    {errors.email.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="password"
+                  className="mb-1.5 block text-[13px] font-medium text-[#888]"
+                >
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  {...register("password")}
+                  placeholder="At least 8 characters"
+                  className="w-full rounded-md border border-white/[0.1] bg-transparent px-3 py-2.5 text-[14px] text-[#fafafa] placeholder:text-[#444] outline-none transition-colors focus:border-white/[0.3]"
+                />
+                {errors.password && (
+                  <p className="mt-1 text-[13px] text-[#ff4444]">
+                    {errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full rounded-md bg-[#fafafa] py-2.5 text-[14px] font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Creating account..." : "Create Account"}
+              </button>
+            </form>
+          </div>
+
+          <p className="mt-6 text-center text-[13px] text-[#666]">
+            Already have an account?{" "}
+            <Link href="/sign-in" className="text-[#fafafa] hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </main>
     </div>
   );
 }
