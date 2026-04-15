@@ -56,7 +56,11 @@ export class SchedulingService {
     if (start >= end) {
       throw new BadRequestException("Start must be before end");
     }
-    return this.schedulingRepo.getBlocksForRange(userId, start, end);
+    return this.schedulingRepo.getBlocksForRangeWithDetails(userId, start, end);
+  }
+
+  async getCurrentBlock(userId: string) {
+    return this.schedulingRepo.getCurrentBlock(userId);
   }
 
   async updateBlockStatus(
