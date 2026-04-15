@@ -15,6 +15,13 @@
       "when": 1776292132148,
       "tag": "0001_unique_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776292170701,
+      "tag": "0002_triggers_and_functions",
+      "breakpoints": true
     }
   ]
 }
