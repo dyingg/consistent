@@ -5,5 +5,6 @@ import { RedisPubSubService } from "./redis-pubsub.service";
 
 @Module({
   providers: [RealtimeGateway, PgListenerService, RedisPubSubService],
+  exports: [RealtimeGateway],
 })
 export class RealtimeModule {}

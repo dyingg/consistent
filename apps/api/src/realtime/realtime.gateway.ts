@@ -22,10 +22,17 @@ export class RealtimeGateway
     this.logger.log(
       `Client connected: ${client.id}, user: ${user?.email ?? "unknown"}`,
     );
+    if (user?.id) {
+      client.join(`user:${user.id}`);
+    }
   }
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  broadcastToUser(userId: string, event: string, payload: unknown) {
+    this.server.to(`user:${userId}`).emit(event, payload);
   }
 
   @SubscribeMessage("ping")
