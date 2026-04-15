@@ -1,1 +1,1 @@
-// Auth tables will be added in Wave 3
+export { user, session, account, verification } from "./auth.js";
