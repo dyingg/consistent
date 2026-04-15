@@ -49,6 +49,11 @@ export class SchedulingController {
     );
   }
 
+  @Get("schedule/now")
+  getCurrentBlock(@CurrentUser() user: any) {
+    return this.schedulingService.getCurrentBlock(user.id);
+  }
+
   @Patch("schedule/blocks/:id")
   updateStatus(
     @CurrentUser() user: any,
