@@ -13,6 +13,7 @@
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate",
     "db:studio": "pnpm --filter @consistent/db db:studio",
+    "db:seed": "pnpm --filter @consistent/db db:seed",
     "e2e": "pnpm --filter @consistent/web e2e",
     "realtime:demo": "tsx scripts/realtime-demo.ts"
   },
