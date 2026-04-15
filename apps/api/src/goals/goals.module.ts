@@ -1,8 +1,11 @@
 import { Module } from "@nestjs/common";
 import { GoalsRepository } from "./goals.repository";
+import { GoalsService } from "./goals.service";
+import { GoalsController } from "./goals.controller";
 
 @Module({
-  providers: [GoalsRepository],
-  exports: [GoalsRepository],
+  controllers: [GoalsController],
+  providers: [GoalsService, GoalsRepository],
+  exports: [GoalsService, GoalsRepository],
 })
 export class GoalsModule {}
