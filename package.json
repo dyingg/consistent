@@ -1,0 +1,25 @@
+{
+  "name": "consistent",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "db:generate": "turbo db:generate",
+    "db:migrate": "turbo db:migrate",
+    "db:studio": "pnpm --filter @consistent/db db:studio",
+    "e2e": "pnpm --filter @consistent/web e2e",
+    "realtime:demo": "tsx scripts/realtime-demo.ts"
+  },
+  "devDependencies": {
+    "turbo": "2.9.6",
+    "typescript": "6.0.2",
+    "@biomejs/biome": "2.4.12",
+    "tsx": "4.19.4"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@consistent/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./base.js",
+    "./nestjs": "./nestjs.js",
+    "./nextjs": "./nextjs.js"
+  },
+  "dependencies": {
+    "eslint": "^10.2.0",
+    "typescript-eslint": "^8.32.1"
+  }
+}
