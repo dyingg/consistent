@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { GoalsRepository } from "./goals.repository";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { EVENTS } from "@consistent/realtime";
 
 export interface CreateGoalInput {
   title: string;
@@ -26,14 +28,19 @@ export interface UpdateGoalInput {
 
 @Injectable()
 export class GoalsService {
-  constructor(private readonly goalsRepo: GoalsRepository) {}
+  constructor(
+    private readonly goalsRepo: GoalsRepository,
+    private readonly realtime: RealtimeGateway,
+  ) {}
 
   async create(userId: string, data: CreateGoalInput) {
     const title = data.title?.trim();
     if (!title) {
       throw new BadRequestException("Title is required");
     }
-    return this.goalsRepo.create({ ...data, title, userId });
+    const goal = await this.goalsRepo.create({ ...data, title, userId });
+    this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId: goal.id });
+    return goal;
   }
 
   async findAll(userId: string, status?: string) {
@@ -74,12 +81,16 @@ export class GoalsService {
       updateData.completedAt = null;
     }
 
-    return this.goalsRepo.update(goalId, updateData as any);
+    const updated = await this.goalsRepo.update(goalId, updateData as any);
+    this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId });
+    return updated;
   }
 
   async delete(userId: string, goalId: number) {
     await this.findById(userId, goalId);
-    return this.goalsRepo.delete(goalId);
+    const deleted = await this.goalsRepo.delete(goalId);
+    this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId });
+    return deleted;
   }
 
   async getProgress(userId: string, goalId: number) {
