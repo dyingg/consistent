@@ -17,9 +17,10 @@
     "realtime:demo": "tsx scripts/realtime-demo.ts"
   },
   "devDependencies": {
-    "turbo": "2.9.6",
-    "typescript": "5.7.3",
     "@biomejs/biome": "2.4.12",
-    "tsx": "4.19.4"
+    "socket.io-client": "4.8.3",
+    "tsx": "4.19.4",
+    "turbo": "2.9.6",
+    "typescript": "5.7.3"
   }
 }
