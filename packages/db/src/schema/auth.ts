@@ -1,4 +1,19 @@
-import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
+
+export interface UserPreferences {
+  workingHours?: { start: string; end: string };
+  deepWorkWindow?: { start: string; end: string };
+  maxTasksPerDay?: number;
+  defaultBlockDurationMin?: number;
+  weeklyGoalHours?: number;
+  preferredBreakMin?: number;
+}
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -6,6 +21,8 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  timezone: text("timezone").notNull().default("UTC"),
+  preferences: jsonb("preferences").$type<UserPreferences>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
