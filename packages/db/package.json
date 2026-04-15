@@ -1,0 +1,27 @@
+{
+  "name": "@consistent/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "pg": "8.20.0"
+  },
+  "devDependencies": {
+    "@consistent/typescript-config": "workspace:*",
+    "@types/pg": "8.11.14",
+    "drizzle-kit": "0.31.10",
+    "typescript": "6.0.2"
+  }
+}
