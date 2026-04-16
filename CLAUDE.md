@@ -56,19 +56,33 @@ apps/
         version.controller.ts   # GET /v1/version
       users/
         users.repository.ts     # Wraps Better Auth user table
+        users.repository.spec.ts
         users.module.ts
       goals/
+        goals.controller.ts     # CRUD + progress endpoints (POST/GET/PATCH/DELETE /v1/goals)
+        goals.service.ts        # Ownership checks, validation, status transitions
+        goals.service.spec.ts
         goals.repository.ts     # CRUD + getProgress() from denormalized columns
+        goals.repository.spec.ts
         goals.module.ts
       tasks/
+        tasks.controller.ts     # CRUD + bulk create, DAG, ready, dependencies (/v1/goals/:id/tasks, /v1/tasks)
+        tasks.service.ts        # Ownership, bulk create in tx, dependency validation
+        tasks.service.spec.ts
         tasks.repository.ts     # CRUD + findReadyForUser() + getGoalDag()
+        tasks.repository.spec.ts
         dependencies.repository.ts  # DAG edge CRUD, catches cycle errors
+        dependencies.repository.spec.ts
         tasks.module.ts
       scheduling/
+        scheduling.controller.ts    # Block CRUD (POST/GET/PATCH/DELETE /v1/schedule/blocks)
+        scheduling.service.ts       # Date range validation, task ownership for blocks
+        scheduling.service.spec.ts
         scheduling.repository.ts    # Schedule runs + blocks
+        scheduling.repository.spec.ts
         scheduling.module.ts
       realtime/
-        realtime.gateway.ts     # Socket.IO gateway (ping/pong)
+        realtime.gateway.ts     # Socket.IO gateway (user rooms, broadcastToUser, ping/pong)
         realtime.adapter.ts     # Custom IoAdapter with session auth
         pg-listener.service.ts  # Postgres LISTEN/NOTIFY
         redis-pubsub.service.ts # Redis pub/sub fan-out
@@ -78,16 +92,19 @@ apps/
       app/
         (auth)/sign-in/page.tsx
         (auth)/sign-up/page.tsx
-        (app)/page.tsx          # Home: shows user or auth links
+        (app)/page.tsx          # Dashboard: goals, now, today, schedule, assistant (live data)
         layout.tsx
       lib/
         auth-client.ts          # Better Auth React client
         query-provider.tsx      # TanStack Query
+        api-client.ts           # Fetch wrapper for API with credentials
+        socket.ts               # Socket.IO client singleton
+        use-realtime.ts         # Hook: WS events → React Query invalidation
       components/ui/            # shadcn/ui components
     e2e/auth.spec.ts            # Playwright e2e
 packages/
   auth/                         # Better Auth shared config + Drizzle adapter
-  contracts/                    # ts-rest + Zod contracts (health reference)
+  contracts/                    # ts-rest + Zod contracts (health, goals, schedule)
   db/                           # Drizzle schema + migrations
     src/
       schema/
@@ -101,7 +118,7 @@ packages/
         index.ts                # Barrel re-export
       seed.ts                   # Seed script (1 user, 2 goals, 8 tasks, 5 deps)
     drizzle/                    # Generated + custom SQL migrations
-  realtime/                     # Event types + channel constants
+  realtime/                     # Event types (goal:updated, task:updated, schedule:updated) + channel constants
   typescript-config/            # Shared tsconfig bases
 tooling/
   eslint-config/                # ESLint 10 flat configs
@@ -138,7 +155,7 @@ turbo prune @consistent/api --docker  # Prune for API Docker build
 ### Test
 ```bash
 pnpm test                       # Unit tests (Jest for API)
-pnpm --filter @consistent/api test  # API repository tests only
+pnpm --filter @consistent/api test  # API unit tests (repositories + services)
 pnpm e2e                        # Playwright e2e (starts servers)
 pnpm realtime:demo              # Socket.IO ping/pong test
 pnpm typecheck                  # TypeScript checks
@@ -211,7 +228,20 @@ pnpm format:check               # Check without writing
 - Repositories only return data and accept inserts/updates — **no business logic**
 - Use `typeof table.$inferInsert` / `$inferSelect` for entity types
 - `DependenciesRepository.create()` catches Postgres cycle error → throws `BadRequestException`
-- Services (not yet built) should wrap repositories for business logic
+
+### Service layer
+- One service per domain: `GoalsService`, `TasksService`, `SchedulingService`
+- Services wrap repositories with business logic: ownership verification, input validation, status transitions
+- `GoalsService` — title validation, `completedAt` management on status changes
+- `TasksService` — bulk create in a transaction with index-based dependency mapping, goal/task ownership checks, DAG operations
+- `SchedulingService` — date range validation, task ownership for block creation
+- Controllers delegate to services; services delegate to repositories
+
+### Controllers
+- `GoalsController` — `POST/GET/PATCH/DELETE /v1/goals`, `GET /v1/goals/:id/progress`
+- `TasksController` — `POST/GET /v1/goals/:goalId/tasks`, `POST /v1/goals/:goalId/tasks/bulk`, `GET /v1/goals/:goalId/dag`, `GET /v1/tasks/ready`, `GET/PATCH/DELETE /v1/tasks/:id`, `POST/DELETE /v1/tasks/:id/dependencies`
+- `SchedulingController` — `POST/GET/PATCH/DELETE /v1/schedule/blocks`
+- All domain controllers use `@UseGuards(AuthGuard)` and `@CurrentUser()` decorator
 
 ## Architectural Decisions
 
@@ -240,6 +270,71 @@ pnpm format:check               # Check without writing
 7. `AuthGuard` calls `auth.api.getSession({ headers: fromNodeHeaders(req.headers) })` to validate
 8. `@CurrentUser()` decorator extracts user from `req.user`
 
+## Realtime Architecture
+
+Services emit lightweight WebSocket events after mutations. The frontend invalidates React Query caches on receipt, triggering a refetch — no full entity sync over WebSocket.
+
+### Flow
+1. Service mutates DB (e.g., `TasksService.update()`)
+2. Service calls `this.realtime.broadcastToUser(userId, EVENTS.TASK_UPDATED, { taskId, goalId })`
+3. Gateway emits to `user:<userId>` Socket.IO room
+4. Frontend `useRealtime()` hook receives event → calls `queryClient.invalidateQueries()`
+5. React Query refetches the affected endpoint(s)
+
+### Events (defined in `packages/realtime/src/events.ts`)
+| Event | Emitted by | Payload | Invalidates |
+|-------|-----------|---------|-------------|
+| `goal:updated` | GoalsService, TasksService | `{ goalId }` | `["goals"]` |
+| `task:updated` | TasksService | `{ taskId, goalId }` | `["goals"]`, `["schedule"]` |
+| `schedule:updated` | SchedulingService | `{ blockId? }` | `["schedule"]` |
+
+### Key patterns
+- `RealtimeGateway.broadcastToUser(userId, event, payload)` — scoped to user's room, no cross-user leaks
+- `RealtimeModule` is exported and imported by GoalsModule, TasksModule, SchedulingModule
+- Socket.IO client (`apps/web/src/lib/socket.ts`) uses `withCredentials: true` for session cookie auth
+- PG LISTEN/NOTIFY and Redis pub/sub are scaffolded but not yet wired for domain events (available for multi-instance scaling)
+
+## API Endpoints
+
+### Auth (Better Auth — outside `/v1/`)
+- `POST /api/auth/sign-up/email` — Register
+- `POST /api/auth/sign-in/email` — Login
+- `GET /api/auth/session` — Get session
+
+### Health
+- `GET /v1/health` — DB + Redis health check
+- `GET /v1/version` — API version
+
+### User
+- `GET /v1/me` — Authenticated user info
+
+### Goals (all protected)
+- `GET /v1/goals?status=` — List goals with computed `progress` percentage
+- `POST /v1/goals` — Create goal
+- `GET /v1/goals/:id` — Get goal
+- `PATCH /v1/goals/:id` — Update goal
+- `DELETE /v1/goals/:id` — Delete goal
+- `GET /v1/goals/:id/progress` — Get denormalized progress counters
+
+### Tasks (all protected)
+- `POST /v1/goals/:goalId/tasks` — Create task
+- `POST /v1/goals/:goalId/tasks/bulk` — Bulk create tasks with dependencies
+- `GET /v1/goals/:goalId/tasks` — List tasks for goal
+- `GET /v1/goals/:goalId/dag` — Get goal DAG (recursive CTE)
+- `GET /v1/tasks/ready` — Find unblocked pending tasks
+- `GET /v1/tasks/:id` — Get task
+- `PATCH /v1/tasks/:id` — Update task (status, title, etc.)
+- `DELETE /v1/tasks/:id` — Delete task
+- `POST /v1/tasks/:id/dependencies` — Add dependency edge
+- `DELETE /v1/tasks/:id/dependencies/:dependsOnId` — Remove dependency edge
+
+### Scheduling (all protected)
+- `POST /v1/schedule/blocks` — Create scheduled block
+- `GET /v1/schedule/blocks?start=&end=` — Get blocks in range (joined with task + goal)
+- `GET /v1/schedule/now` — Get currently active block (joined with task + goal)
+- `PATCH /v1/schedule/blocks/:id` — Update block status
+- `DELETE /v1/schedule/blocks/:id` — Delete block
+
 ## Independent Deployment Model
 
 - API and web are versioned and deployed separately
@@ -257,9 +352,9 @@ pnpm format:check               # Check without writing
 4. Consume from web via ts-rest client or direct fetch
 
 ### New realtime event
-1. Define schema in `packages/realtime/src/events.ts`
-2. Add `@SubscribeMessage()` handler in `realtime.gateway.ts`
-3. Client listens with `socket.on("eventName", callback)`
+1. Define event name in `EVENTS` const + Zod payload schema in `packages/realtime/src/events.ts`
+2. Emit from the relevant service via `this.realtime.broadcastToUser(userId, EVENTS.XXX, payload)`
+3. Add listener in `apps/web/src/lib/use-realtime.ts` that calls `queryClient.invalidateQueries()`
 
 ### New database table or column
 1. Edit/create schema file in `packages/db/src/schema/`
@@ -275,9 +370,11 @@ pnpm format:check               # Check without writing
 ### New domain module (API)
 1. Create directory under `apps/api/src/<domain>/`
 2. Create `<domain>.repository.ts` — inject `DRIZZLE`, wrap Drizzle queries
-3. Create `<domain>.module.ts` — provide and export the repository
-4. Import the module in `apps/api/src/app.module.ts`
-5. Write tests in `<domain>.repository.spec.ts`
+3. Create `<domain>.service.ts` — inject repository, add business logic (validation, ownership, status transitions)
+4. Create `<domain>.controller.ts` — inject service, define routes with `@Controller({ version: '1' })`, `@UseGuards(AuthGuard)`
+5. Create `<domain>.module.ts` — provide repository + service + controller, export service
+6. Import the module in `apps/api/src/app.module.ts`
+7. Write tests in `<domain>.repository.spec.ts` and `<domain>.service.spec.ts`
 
 ### New protected route (frontend)
 1. Use `useSession()` from `@/lib/auth-client` to check auth
@@ -319,15 +416,15 @@ pnpm format:check               # Check without writing
 
 ## What's Not Built Yet
 
-- Service layer / business logic (repositories exist, services do not)
-- API controllers for goals, tasks, scheduling (only /v1/me and /v1/health exist)
-- UI beyond sign-in, sign-up, and home page
+- Goal/task management UI (CRUD forms — dashboard shows read-only data from API)
+- Scheduling UI (creating/moving blocks — only API endpoints exist)
+- AI assistant backend (chat section is client-side canned responses)
 - Email verification / password reset (Better Auth supports it, just not enabled)
 - OAuth providers
 - Rate limiting on auth endpoints
 - Production deployment configs (Vercel/Fly.io — workflows are scaffolded but deploy steps commented out)
-- API-level integration tests (unit tests for repositories exist)
 - pg_cron setup for `reconcile_counters()` nightly run
+- Redis pub/sub fan-out for multi-instance WebSocket scaling (infrastructure scaffolded, not wired to domain events)
 
 ## Git Commit Convention
 
