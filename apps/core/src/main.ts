@@ -22,7 +22,8 @@ async function bootstrap() {
   // Mount Better Auth on Express
   const express = app.getHttpAdapter().getInstance();
 
-  express.all("/api/auth/*splat", async (req: ExpressRequest, res: ExpressResponse) => {
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Better Auth handler is async
+  (express as any).all("/api/auth/*splat", async (req: ExpressRequest, res: ExpressResponse) => {
     const url = new URL(req.originalUrl, `http://${req.headers.host}`);
     const headers = fromNodeHeaders(req.headers);
     const bodyStr =
