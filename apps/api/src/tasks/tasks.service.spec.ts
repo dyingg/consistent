@@ -10,6 +10,7 @@ import { TasksService } from "./tasks.service";
 import { TasksRepository } from "./tasks.repository";
 import { DependenciesRepository } from "./dependencies.repository";
 import { GoalsRepository } from "../goals/goals.repository";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 describe("TasksService", () => {
   let service: TasksService;
@@ -37,7 +38,7 @@ describe("TasksService", () => {
     userId,
     title: "Read chapter 1",
     description: null,
-    descriptionContext: null,
+    context: null,
     status: "pending" as const,
     estimatedMinutes: 60,
     actualMinutes: null,
@@ -96,6 +97,12 @@ describe("TasksService", () => {
         {
           provide: DRIZZLE,
           useValue: db,
+        },
+        {
+          provide: RealtimeGateway,
+          useValue: {
+            broadcastToUser: jest.fn(),
+          },
         },
       ],
     }).compile();

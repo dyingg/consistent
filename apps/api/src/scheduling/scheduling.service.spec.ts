@@ -8,6 +8,7 @@ jest.mock("../db", () => ({
 import { SchedulingService } from "./scheduling.service";
 import { SchedulingRepository } from "./scheduling.repository";
 import { TasksRepository } from "../tasks/tasks.repository";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 describe("SchedulingService", () => {
   let service: SchedulingService;
@@ -48,6 +49,8 @@ describe("SchedulingService", () => {
             findBlockById: jest.fn(),
             createBlock: jest.fn(),
             getBlocksForRange: jest.fn(),
+            getBlocksForRangeWithDetails: jest.fn(),
+            getCurrentBlock: jest.fn(),
             updateBlockStatus: jest.fn(),
             deleteBlock: jest.fn(),
           },
@@ -56,6 +59,12 @@ describe("SchedulingService", () => {
           provide: TasksRepository,
           useValue: {
             findById: jest.fn(),
+          },
+        },
+        {
+          provide: RealtimeGateway,
+          useValue: {
+            broadcastToUser: jest.fn(),
           },
         },
       ],
@@ -178,7 +187,7 @@ describe("SchedulingService", () => {
 
   describe("getBlocksForRange", () => {
     it("should return blocks within the date range", async () => {
-      schedulingRepo.getBlocksForRange.mockResolvedValue([mockBlock] as any);
+      schedulingRepo.getBlocksForRangeWithDetails.mockResolvedValue([mockBlock] as any);
 
       const result = await service.getBlocksForRange(
         userId,
@@ -187,7 +196,7 @@ describe("SchedulingService", () => {
       );
 
       expect(result).toEqual([mockBlock]);
-      expect(schedulingRepo.getBlocksForRange).toHaveBeenCalledWith(
+      expect(schedulingRepo.getBlocksForRangeWithDetails).toHaveBeenCalledWith(
         userId,
         new Date("2026-04-16T00:00:00Z"),
         new Date("2026-04-17T00:00:00Z"),
@@ -195,7 +204,7 @@ describe("SchedulingService", () => {
     });
 
     it("should return empty array when no blocks in range", async () => {
-      schedulingRepo.getBlocksForRange.mockResolvedValue([]);
+      schedulingRepo.getBlocksForRangeWithDetails.mockResolvedValue([]);
 
       const result = await service.getBlocksForRange(
         userId,

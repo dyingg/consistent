@@ -156,7 +156,7 @@ function endOfDay(date: Date): string {
 // Motion
 // ---------------------------------------------------------------------------
 
-const easeOutExpo = [0.16, 1, 0.3, 1];
+const easeOutExpo: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 const containerVariants = {
   hidden: {},

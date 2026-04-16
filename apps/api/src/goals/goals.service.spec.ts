@@ -7,6 +7,7 @@ jest.mock("../db", () => ({
 
 import { GoalsService } from "./goals.service";
 import { GoalsRepository } from "./goals.repository";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 describe("GoalsService", () => {
   let service: GoalsService;
@@ -20,7 +21,7 @@ describe("GoalsService", () => {
     userId,
     title: "Learn Rust",
     description: "Systems programming",
-    descriptionContext: null,
+    context: null,
     color: "#7F77DD",
     status: "active" as const,
     targetDate: null,
@@ -44,6 +45,12 @@ describe("GoalsService", () => {
             update: jest.fn(),
             delete: jest.fn(),
             getProgress: jest.fn(),
+          },
+        },
+        {
+          provide: RealtimeGateway,
+          useValue: {
+            broadcastToUser: jest.fn(),
           },
         },
       ],
@@ -103,13 +110,15 @@ describe("GoalsService", () => {
   // ── findAll ─────────────────────────────────────────────
 
   describe("findAll", () => {
-    it("should return all goals for user", async () => {
+    it("should return all goals for user with computed progress", async () => {
       const goals = [mockGoal];
       goalsRepo.findByUserId.mockResolvedValue(goals as any);
 
       const result = await service.findAll(userId);
 
-      expect(result).toEqual(goals);
+      expect(result).toEqual([
+        { ...mockGoal, progress: Math.round((mockGoal.completedTasks / mockGoal.totalTasks) * 100) },
+      ]);
       expect(goalsRepo.findByUserId).toHaveBeenCalledWith(userId, undefined);
     });
 
