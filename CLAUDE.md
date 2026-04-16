@@ -75,10 +75,10 @@ apps/
         dependencies.repository.spec.ts
         tasks.module.ts
       scheduling/
-        scheduling.controller.ts    # Block CRUD (POST/GET/PATCH/DELETE /v1/schedule/blocks)
-        scheduling.service.ts       # Date range validation, task ownership for blocks
+        scheduling.controller.ts    # Block CRUD + now (POST/GET/PATCH/DELETE /v1/schedule/blocks, GET /v1/schedule/now)
+        scheduling.service.ts       # Date range validation, task ownership, getCurrentBlock, realtime emission
         scheduling.service.spec.ts
-        scheduling.repository.ts    # Schedule runs + blocks
+        scheduling.repository.ts    # Schedule runs + blocks + joined queries (blocks with task/goal)
         scheduling.repository.spec.ts
         scheduling.module.ts
       realtime/
@@ -232,15 +232,15 @@ pnpm format:check               # Check without writing
 ### Service layer
 - One service per domain: `GoalsService`, `TasksService`, `SchedulingService`
 - Services wrap repositories with business logic: ownership verification, input validation, status transitions
-- `GoalsService` — title validation, `completedAt` management on status changes
-- `TasksService` — bulk create in a transaction with index-based dependency mapping, goal/task ownership checks, DAG operations
-- `SchedulingService` — date range validation, task ownership for block creation
+- `GoalsService` — title validation, `completedAt` management on status changes, computed `progress` in `findAll()`, emits `goal:updated`
+- `TasksService` — bulk create in a transaction with index-based dependency mapping, goal/task ownership checks, DAG operations, emits `task:updated` + `goal:updated`
+- `SchedulingService` — date range validation, task ownership for block creation, joined queries (blocks + task + goal), `getCurrentBlock()` for "now", emits `schedule:updated`
 - Controllers delegate to services; services delegate to repositories
 
 ### Controllers
 - `GoalsController` — `POST/GET/PATCH/DELETE /v1/goals`, `GET /v1/goals/:id/progress`
 - `TasksController` — `POST/GET /v1/goals/:goalId/tasks`, `POST /v1/goals/:goalId/tasks/bulk`, `GET /v1/goals/:goalId/dag`, `GET /v1/tasks/ready`, `GET/PATCH/DELETE /v1/tasks/:id`, `POST/DELETE /v1/tasks/:id/dependencies`
-- `SchedulingController` — `POST/GET/PATCH/DELETE /v1/schedule/blocks`
+- `SchedulingController` — `POST/GET/PATCH/DELETE /v1/schedule/blocks`, `GET /v1/schedule/now`
 - All domain controllers use `@UseGuards(AuthGuard)` and `@CurrentUser()` decorator
 
 ## Architectural Decisions
@@ -413,6 +413,7 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 - Custom SQL migrations (triggers, partial index, check constraints) are tracked in drizzle journal but NOT auto-regenerated — edit `drizzle/0002_triggers_and_functions.sql` by hand
 - `db:migrate` via turbo may fail if `DATABASE_URL` isn't available — run directly with `env` prefix (see Database commands above)
 - Jest tests for API mock the `../db` barrel to avoid importing ESM-only `@t3-oss/env-core` — see `jest` config in `apps/api/package.json` for `moduleNameMapper` and inline tsconfig
+- Service specs must provide a mock `RealtimeGateway` with `{ broadcastToUser: jest.fn() }` — services inject it for event emission
 
 ## What's Not Built Yet
 
