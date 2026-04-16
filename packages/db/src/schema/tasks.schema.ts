@@ -34,7 +34,7 @@ export const tasks = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
-    descriptionContext: text("description_context"),
+    context: text("context"),
     status: taskStatusEnum("status").notNull().default("pending"),
     estimatedMinutes: integer("estimated_minutes"),
     actualMinutes: integer("actual_minutes"),

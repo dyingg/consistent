@@ -80,7 +80,7 @@ async function seed() {
       userId,
       title: "Learn Rust",
       description: "Complete the Rust book and build a project",
-      descriptionContext:
+      context:
         "Systems programming skill for performance-critical backend services",
       color: "#7F77DD",
       priority: 2,
@@ -93,7 +93,7 @@ async function seed() {
       userId,
       title: "Ship MVP",
       description: "Launch the first version of the product",
-      descriptionContext:
+      context:
         "Critical path to revenue — design, build API, deploy",
       color: "#4ECDC4",
       priority: 1,

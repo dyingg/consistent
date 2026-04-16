@@ -29,6 +29,13 @@
       "when": 1776293433240,
       "tag": "0003_fix_updated_at_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776296297912,
+      "tag": "0004_rename-description-context-to-context",
+      "breakpoints": true
     }
   ]
 }

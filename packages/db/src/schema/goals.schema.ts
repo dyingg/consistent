@@ -27,7 +27,7 @@ export const goals = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
-    descriptionContext: text("description_context"),
+    context: text("context"),
     color: text("color"),
     status: goalStatusEnum("status").notNull().default("active"),
     targetDate: date("target_date"),

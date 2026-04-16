@@ -21,6 +21,7 @@ async function bootstrap() {
   app.enableCors({
     origin: env.WEB_ORIGIN,
     credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
   // Mount Better Auth on raw Fastify instance
