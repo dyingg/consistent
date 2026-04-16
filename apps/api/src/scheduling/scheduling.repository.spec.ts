@@ -170,4 +170,45 @@ describe("SchedulingRepository", () => {
       expect(result).toBeNull();
     });
   });
+
+  describe("getCurrentBlock", () => {
+    it("should query with orderBy for index-optimal scan", async () => {
+      const enrichedBlock = {
+        ...mockBlock,
+        task: { id: 10, title: "Read", status: "pending", goalId: 1 },
+        goal: { id: 1, title: "Learning", color: "#f00" },
+      };
+      const chain = chainMock([enrichedBlock], [
+        "from",
+        "innerJoin",
+        "innerJoin",
+        "where",
+        "orderBy",
+        "limit",
+      ]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.getCurrentBlock("user-1");
+
+      expect(result).toEqual(enrichedBlock);
+      expect(chain.orderBy).toHaveBeenCalled();
+      expect(chain.limit).toHaveBeenCalled();
+    });
+
+    it("should return null when no current block", async () => {
+      const chain = chainMock([], [
+        "from",
+        "innerJoin",
+        "innerJoin",
+        "where",
+        "orderBy",
+        "limit",
+      ]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.getCurrentBlock("user-1");
+
+      expect(result).toBeNull();
+    });
+  });
 });
