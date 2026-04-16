@@ -13,10 +13,14 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.53",
     "@consistent/auth": "workspace:*",
     "@consistent/contracts": "workspace:*",
     "@consistent/db": "workspace:*",
     "@consistent/realtime": "workspace:*",
+    "@mastra/auth-better-auth": "^1.0.2",
+    "@mastra/core": "^1.25.0",
+    "@mastra/express": "^1.3.9",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
@@ -80,7 +84,9 @@
             "noImplicitAny": true,
             "strictBindCallApply": true,
             "noFallthroughCasesInSwitch": true,
-            "lib": ["ES2023"]
+            "lib": [
+              "ES2023"
+            ]
           }
         }
       ]

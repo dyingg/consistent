@@ -13,6 +13,9 @@ export const env = createEnv({
       .transform(Number)
       .pipe(z.number().int().positive())
       .default("3001"),
+    AI_MODEL: z.string().default("openai/gpt-4o"),
+    OPENAI_API_KEY: z.string().optional(),
+    ANTHROPIC_API_KEY: z.string().optional(),
   },
   runtimeEnv: process.env,
 });
