@@ -271,6 +271,9 @@ importers:
       '@consistent/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
       '@types/pg':
         specifier: 8.11.14
         version: 8.11.14
@@ -8534,7 +8537,6 @@ snapshots:
   '@types/node@25.6.0':
     dependencies:
       undici-types: 7.19.2
-    optional: true
 
   '@types/pg@8.11.14':
     dependencies:
@@ -12998,8 +13000,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@7.19.2:
-    optional: true
+  undici-types@7.19.2: {}
 
   unicorn-magic@0.3.0: {}
 
