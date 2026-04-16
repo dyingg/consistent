@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc } from "drizzle-orm";
 import {
   scheduleRuns,
   scheduledBlocks,
@@ -102,7 +102,8 @@ export class SchedulingRepository {
           gte(scheduledBlocks.startTime, start),
           lte(scheduledBlocks.endTime, end),
         ),
-      );
+      )
+      .orderBy(asc(scheduledBlocks.startTime));
   }
 
   async getCurrentBlock(userId: string) {

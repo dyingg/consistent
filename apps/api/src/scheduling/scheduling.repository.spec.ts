@@ -171,6 +171,31 @@ describe("SchedulingRepository", () => {
     });
   });
 
+  describe("getBlocksForRangeWithDetails", () => {
+    it("should query with orderBy for deterministic time ordering", async () => {
+      const enrichedBlock = {
+        ...mockBlock,
+        task: { id: 10, title: "Read", status: "pending", goalId: 1 },
+        goal: { id: 1, title: "Learning", color: "#f00" },
+      };
+      const chain = chainMock([enrichedBlock], [
+        "from",
+        "innerJoin",
+        "innerJoin",
+        "where",
+        "orderBy",
+      ]);
+      db.select.mockReturnValue(chain);
+
+      const start = new Date("2026-04-16T00:00:00Z");
+      const end = new Date("2026-04-16T23:59:59Z");
+      const result = await repo.getBlocksForRangeWithDetails("user-1", start, end);
+
+      expect(result).toEqual([enrichedBlock]);
+      expect(chain.orderBy).toHaveBeenCalled();
+    });
+  });
+
   describe("getCurrentBlock", () => {
     it("should query with orderBy for index-optimal scan", async () => {
       const enrichedBlock = {
