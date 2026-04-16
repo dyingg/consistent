@@ -5,7 +5,7 @@ FROM base AS pruner
 WORKDIR /app
 RUN npm i -g turbo@2.9.6
 COPY . .
-RUN turbo prune @consistent/api --docker
+RUN turbo prune @consistent/core --docker
 
 FROM base AS installer
 WORKDIR /app
@@ -17,11 +17,11 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=installer /app/ .
 COPY --from=pruner /app/out/full/ .
-RUN pnpm turbo build --filter=@consistent/api
+RUN pnpm turbo build --filter=@consistent/core
 
 FROM base AS runner
 WORKDIR /app
 COPY --from=builder /app/ .
-WORKDIR /app/apps/api
+WORKDIR /app/apps/core
 EXPOSE 3001
 CMD ["node", "dist/main.js"]
