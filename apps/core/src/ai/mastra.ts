@@ -11,8 +11,17 @@ export function createMastra(agent: Agent, store: PostgresStore): Mastra {
     storage: store as any,
     server: {
       apiPrefix: "",
-      auth: new MastraAuthBetterAuth({ auth: auth as any }) as any,
-      apiRoutes: [chatRoute({ path: "/chat/:agentId" })],
+      auth: new MastraAuthBetterAuth({
+        auth: auth as any,
+        protected: [/^\/chat\//],
+        mapUserToResourceId: (u: any) => u?.user?.id ?? u?.id ?? null,
+      } as any) as any,
+      apiRoutes: [
+        {
+          ...chatRoute({ path: "/chat/:agentId" }),
+          requiresAuth: true,
+        },
+      ],
     } as any,
   });
 }
