@@ -227,6 +227,29 @@ describe("SchedulingRepository", () => {
     });
   });
 
+  describe("shiftBlocks", () => {
+    it("should update each block atomically and return the rows", async () => {
+      const tx = {
+        update: jest.fn(),
+      };
+      const chain = chainMock([mockBlock], ["set", "where", "returning"]);
+      tx.update.mockReturnValue(chain);
+      db.transaction = jest.fn(async (cb: any) => cb(tx));
+
+      const result = await repo.shiftBlocks([1, 2], 30);
+
+      expect(db.transaction).toHaveBeenCalled();
+      expect(tx.update).toHaveBeenCalledTimes(2);
+      expect(result).toHaveLength(2);
+    });
+
+    it("should return empty array when given no ids", async () => {
+      db.transaction = jest.fn(async (cb: any) => cb({ update: jest.fn() }));
+      const result = await repo.shiftBlocks([], 30);
+      expect(result).toEqual([]);
+    });
+  });
+
   describe("deleteBlock", () => {
     it("should delete block and return it", async () => {
       const chain = chainMock([mockBlock], ["where", "returning"]);

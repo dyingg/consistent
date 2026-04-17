@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq, and, gte, lte, lt, gt, desc, asc, notInArray } from "drizzle-orm";
+import { eq, and, gte, lte, lt, gt, desc, asc, notInArray, sql } from "drizzle-orm";
 import {
   scheduleRuns,
   scheduledBlocks,
@@ -65,6 +65,25 @@ export class SchedulingRepository {
       .where(eq(scheduledBlocks.id, id))
       .returning();
     return rows.at(0) ?? null;
+  }
+
+  async shiftBlocks(ids: number[], deltaMinutes: number) {
+    if (ids.length === 0) return [];
+    return this.db.transaction(async (tx) => {
+      const rows: Array<typeof scheduledBlocks.$inferSelect> = [];
+      for (const id of ids) {
+        const updated = await tx
+          .update(scheduledBlocks)
+          .set({
+            startTime: sql`${scheduledBlocks.startTime} + make_interval(mins => ${deltaMinutes})`,
+            endTime: sql`${scheduledBlocks.endTime} + make_interval(mins => ${deltaMinutes})`,
+          })
+          .where(eq(scheduledBlocks.id, id))
+          .returning();
+        if (updated.at(0)) rows.push(updated[0]!);
+      }
+      return rows;
+    });
   }
 
   async findOverlapping(
