@@ -7,6 +7,14 @@ export function buildThreadId(userId: string, subId?: string): string {
 
 export function isOwnedBy(threadId: string, userId: string): boolean {
   if (!userId) return false;
-  const base = buildThreadId(userId);
-  return threadId === base || threadId.startsWith(`${base}-`);
+  if (!threadId) return false;
+  // Note: buildThreadId validates that userIds don't contain hyphens,
+  // so we can safely parse threadIds without prefix-collision ambiguity.
+  try {
+    const base = buildThreadId(userId);
+    return threadId === base || threadId.startsWith(`${base}-`);
+  } catch {
+    // If buildThreadId throws (invalid userId), ownership check fails.
+    return false;
+  }
 }
