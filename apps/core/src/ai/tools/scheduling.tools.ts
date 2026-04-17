@@ -107,6 +107,45 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
       }),
   });
 
+  const shiftBlocks = createTool({
+    id: "shift-blocks",
+    description:
+      "Shift one or more blocks forward or backward in time by deltaMinutes (may be negative). Use blockIds when you already know which blocks to move (e.g. the ones you just listed to the user). Use afterTime when the user's day was disrupted and everything from a point onward should slide — this saves a get-schedule call. Exactly one selector must be provided. Runs in one transaction; ownership is enforced server-side. Returns { blocks, conflicts } — surface conflicts to the user before assuming the shift is final.",
+    inputSchema: z
+      .object({
+        deltaMinutes: z
+          .number()
+          .int()
+          .describe(
+            "Positive shifts later, negative shifts earlier. Must be non-zero.",
+          ),
+        blockIds: z.array(z.number()).optional(),
+        afterTime: z
+          .string()
+          .optional()
+          .describe(
+            "ISO 8601. Shifts every block whose startTime >= this instant.",
+          ),
+      })
+      .refine((v) => (v.blockIds ? !v.afterTime : !!v.afterTime), {
+        message: "Provide exactly one of blockIds or afterTime",
+      }),
+    outputSchema: z.any(),
+    execute: async (input, context) =>
+      safe(async () => {
+        if (input.blockIds) {
+          return schedulingService.shiftBlocks(getUserId(context), {
+            blockIds: input.blockIds,
+            deltaMinutes: input.deltaMinutes,
+          });
+        }
+        return schedulingService.shiftBlocks(getUserId(context), {
+          afterTime: new Date(input.afterTime!),
+          deltaMinutes: input.deltaMinutes,
+        });
+      }),
+  });
+
   const deleteBlock = createTool({
     id: "delete-block",
     description:
@@ -125,6 +164,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
     "get-current-block": getCurrentBlock,
     "create-block": createBlock,
     "update-block": updateBlock,
+    "shift-blocks": shiftBlocks,
     "delete-block": deleteBlock,
   };
 }

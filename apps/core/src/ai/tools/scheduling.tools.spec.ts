@@ -15,6 +15,7 @@ describe("scheduling tools", () => {
     createBlock: jest.fn(),
     updateBlockStatus: jest.fn(),
     updateBlock: jest.fn(),
+    shiftBlocks: jest.fn(),
     deleteBlock: jest.fn(),
   } as unknown as SchedulingService;
 
@@ -100,5 +101,37 @@ describe("scheduling tools", () => {
     (svc.getCurrentBlock as jest.Mock).mockRejectedValue(new Error("boom"));
     const res = await tools["get-current-block"].execute!({}, mockContext);
     expect(res).toEqual({ error: true, message: "boom" });
+  });
+
+  describe("shift-blocks", () => {
+    it("forwards explicit blockIds selector", async () => {
+      (svc.shiftBlocks as jest.Mock) = jest.fn().mockResolvedValue({
+        blocks: [],
+        conflicts: [],
+      });
+      await tools["shift-blocks"].execute!(
+        { blockIds: [1, 2], deltaMinutes: 30 },
+        mockContext,
+      );
+      expect(svc.shiftBlocks).toHaveBeenCalledWith("user-123", {
+        blockIds: [1, 2],
+        deltaMinutes: 30,
+      });
+    });
+
+    it("converts afterTime ISO to Date", async () => {
+      (svc.shiftBlocks as jest.Mock) = jest.fn().mockResolvedValue({
+        blocks: [],
+        conflicts: [],
+      });
+      await tools["shift-blocks"].execute!(
+        { afterTime: "2026-04-17T13:00:00Z", deltaMinutes: -15 },
+        mockContext,
+      );
+      expect(svc.shiftBlocks).toHaveBeenCalledWith("user-123", {
+        afterTime: new Date("2026-04-17T13:00:00Z"),
+        deltaMinutes: -15,
+      });
+    });
   });
 });
