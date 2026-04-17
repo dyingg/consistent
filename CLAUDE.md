@@ -5,7 +5,7 @@
 TypeScript monorepo with two independently deployable applications:
 
 - **`apps/web`** — Next.js 16.2 frontend (deploys to Vercel)
-- **`apps/api`** — NestJS 11 backend with Fastify (deploys to Fly.io/Railway)
+- **`apps/api`** — NestJS 11 backend with Express (deploys to Fly.io/Railway)
 
 Shared packages in `packages/` provide the stability boundary. The apps communicate via HTTP and WebSocket at runtime but share types and contracts at build time.
 
@@ -20,7 +20,7 @@ Working email + password auth via Better Auth. Domain data model includes goals,
 | Frontend | Next.js (App Router, Turbopack) | 16.2.3 |
 | UI framework | React | 19.2.4 |
 | Styling | Tailwind CSS v4 + shadcn/ui v4 | 4.2.2 |
-| Backend | NestJS + Fastify adapter | 11.1.19 |
+| Backend | NestJS + Express adapter | 11.1.19 |
 | Backend compiler | SWC (via NestJS CLI) | — |
 | Database | PostgreSQL 16 via Drizzle ORM | 0.45.2 |
 | Auth | Better Auth | 1.6.3 |
@@ -37,9 +37,9 @@ Working email + password auth via Better Auth. Domain data model includes goals,
 
 ```
 apps/
-  api/                          # NestJS 11 + Fastify
+  api/                          # NestJS 11 + Express
     src/
-      main.ts                   # Bootstrap, mounts Better Auth on Fastify
+      main.ts                   # Bootstrap, mounts Better Auth on Express
       app.module.ts             # Root module (imports DrizzleModule + all domain modules)
       env.ts                    # @t3-oss/env-core validation
       db/
@@ -245,7 +245,7 @@ pnpm format:check               # Check without writing
 
 ## Architectural Decisions
 
-- **Fastify over Express** — faster, better TypeScript support, native async
+- **Express over Fastify** — broader middleware ecosystem (e.g., Mastra adapter), simpler raw route mounting
 - **Drizzle over Prisma** — SQL-like API, no code generation step, lighter
 - **Better Auth over NextAuth** — framework-agnostic, works with any backend, simpler session model
 - **Database sessions over JWT** — revocable, no token size issues, simpler security model
@@ -263,7 +263,7 @@ pnpm format:check               # Check without writing
 
 1. User fills sign-up/sign-in form at `apps/web`
 2. Better Auth React client POSTs to `http://API_URL/api/auth/sign-up/email`
-3. Raw Fastify route in `apps/api/src/main.ts` catches `/api/auth/*`, constructs a Web `Request`, forwards to `auth.handler()`
+3. Raw Express route in `apps/api/src/main.ts` catches `/api/auth/*`, constructs a Web `Request`, forwards to `auth.handler()`
 4. Better Auth validates credentials, creates user + session in Postgres via Drizzle adapter
 5. Response includes `Set-Cookie` with `httpOnly` session token
 6. Browser stores cookie, sends it on subsequent requests

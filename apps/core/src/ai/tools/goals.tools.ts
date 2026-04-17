@@ -34,11 +34,7 @@ export function createGoalTools(goalsService: GoalsService) {
         .nullable()
         .optional()
         .describe("Longer description of the goal"),
-      context: z
-        .string()
-        .nullable()
-        .optional()
-        .describe("Additional context"),
+      context: z.string().nullable().optional().describe("Additional context"),
       color: z
         .string()
         .nullable()
@@ -72,9 +68,7 @@ export function createGoalTools(goalsService: GoalsService) {
       description: z.string().nullable().optional(),
       context: z.string().nullable().optional(),
       color: z.string().nullable().optional(),
-      status: z
-        .enum(["active", "completed", "paused", "abandoned"])
-        .optional(),
+      status: z.enum(["active", "completed", "paused", "abandoned"]).optional(),
       targetDate: z.string().nullable().optional(),
       priority: z.number().optional(),
     }),

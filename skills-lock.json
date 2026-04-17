@@ -56,6 +56,11 @@
       "sourceType": "github",
       "computedHash": "6b5fd49587616ca1e594e9c6b11bc1cef5eb0b2d137c307de54a8a650770f4ce"
     },
+    "mastra": {
+      "source": "mastra-ai/skills",
+      "sourceType": "github",
+      "computedHash": "b42f583342dfee7deb541f4d094f03e8748898257f1f884fa71de1fdba9f38a2"
+    },
     "optimize": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",
