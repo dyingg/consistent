@@ -40,20 +40,24 @@ describe("scheduling tools", () => {
     expect(svc.getCurrentBlock).toHaveBeenCalledWith("user-123");
   });
 
-  it("create-block normalizes Dates and passes scheduledBy=llm", async () => {
-    (svc.createBlock as jest.Mock).mockResolvedValue({ id: 1 });
+  it("create-block normalizes Dates, passes scheduledBy=llm, returns conflicts", async () => {
+    (svc.createBlock as jest.Mock).mockResolvedValue({
+      block: { id: 1 },
+      conflicts: [],
+    });
     const input = {
       taskId: 42,
       startTime: "2026-04-17T09:00:00Z",
       endTime: "2026-04-17T10:00:00Z",
     };
-    await tools["create-block"].execute!(input, mockContext);
+    const result = await tools["create-block"].execute!(input, mockContext);
     expect(svc.createBlock).toHaveBeenCalledWith("user-123", {
       taskId: 42,
       startTime: new Date(input.startTime),
       endTime: new Date(input.endTime),
       scheduledBy: "llm",
     });
+    expect(result).toEqual({ block: { id: 1 }, conflicts: [] });
   });
 
   it("update-block forwards status-only patch to service.updateBlock", async () => {

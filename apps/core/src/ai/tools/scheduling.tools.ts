@@ -58,7 +58,8 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
 
   const createBlock = createTool({
     id: "create-block",
-    description: "Schedule a time block for a task.",
+    description:
+      "Schedule a time block for a task. Returns { block, conflicts }; if conflicts is non-empty, surface them before moving on.",
     inputSchema: z.object({
       taskId: z.number(),
       startTime: z.string(),
@@ -66,14 +67,14 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
     }),
     outputSchema: z.any(),
     execute: async (input, context) =>
-      safe(async () => ({
-        block: await schedulingService.createBlock(getUserId(context), {
+      safe(async () =>
+        schedulingService.createBlock(getUserId(context), {
           taskId: input.taskId,
           startTime: new Date(input.startTime),
           endTime: new Date(input.endTime),
           scheduledBy: "llm",
         }),
-      })),
+      ),
   });
 
   const updateBlock = createTool({
