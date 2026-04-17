@@ -9,27 +9,16 @@ export interface CoachAgentOptions {
 }
 
 /**
- * Build the per-request instructions. The language model has a knowledge
- * cutoff and no inherent sense of "now", so we inject the real clock every
- * turn. Dates/times are in UTC; ask the user for their timezone if needed.
+ * Instructions are a byte-stable string so Anthropic's prompt cache stays
+ * warm across turns. The agent resolves "now" at runtime by calling the
+ * get-current-time tool (which reads timezone + client clock from the
+ * per-request context set by the browser).
  */
-function buildInstructions(): string {
-  const now = new Date();
-  const isoDate = now.toISOString().slice(0, 10);
-  const weekday = now.toLocaleDateString("en-US", {
-    weekday: "long",
-    timeZone: "UTC",
-  });
-  const timeUtc = now.toISOString().slice(11, 16);
-  const clock = `Today is ${weekday}, ${isoDate} (UTC ${timeUtc}). If the user references a day/time, assume UTC unless they tell you their timezone.`;
-  return `${clock}\n\n${COACH_SYSTEM_PROMPT}`;
-}
-
 export function createCoachAgent(opts: CoachAgentOptions): Agent {
   return new Agent({
     id: "consistent-coach",
     name: "Consistent Coach",
-    instructions: () => buildInstructions(),
+    instructions: COACH_SYSTEM_PROMPT,
     model: opts.model as any,
     tools: opts.tools as any,
     memory: opts.memory,
