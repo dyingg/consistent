@@ -52,6 +52,9 @@ describe("SchedulingService", () => {
             getBlocksForRangeWithDetails: jest.fn(),
             getCurrentBlock: jest.fn(),
             updateBlockStatus: jest.fn(),
+            updateBlock: jest.fn(),
+            findOverlapping: jest.fn(),
+            shiftBlocks: jest.fn(),
             deleteBlock: jest.fn(),
           },
         },
@@ -315,6 +318,109 @@ describe("SchedulingService", () => {
       await expect(
         service.updateBlockStatus(otherUserId, 1, "confirmed"),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── updateBlock ─────────────────────────────────────────
+
+  describe("updateBlock", () => {
+    const updated = { ...mockBlock, endTime: new Date("2026-04-16T11:00:00Z") };
+
+    it("should patch times and return { block, conflicts }", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+      schedulingRepo.updateBlock.mockResolvedValue(updated as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      const result = await service.updateBlock(userId, 1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+
+      expect(result).toEqual({ block: updated, conflicts: [] });
+      expect(schedulingRepo.updateBlock).toHaveBeenCalledWith(1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+    });
+
+    it("should verify new task ownership when taskId changes", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+      tasksRepo.findById.mockResolvedValue({ ...mockTask, id: 99 } as any);
+      schedulingRepo.updateBlock.mockResolvedValue({ ...updated, taskId: 99 } as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      await service.updateBlock(userId, 1, { taskId: 99 });
+
+      expect(tasksRepo.findById).toHaveBeenCalledWith(99);
+    });
+
+    it("should throw NotFoundException when new task not owned", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+      tasksRepo.findById.mockResolvedValue({ ...mockTask, userId: otherUserId } as any);
+
+      await expect(
+        service.updateBlock(userId, 1, { taskId: 99 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw BadRequestException when effective start >= end", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+
+      await expect(
+        service.updateBlock(userId, 1, {
+          endTime: new Date("2026-04-16T08:00:00Z"),
+        }),
+      ).rejects.toThrow("Start time must be before end time");
+    });
+
+    it("should throw NotFoundException when block not owned", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+
+      await expect(
+        service.updateBlock(otherUserId, 1, { status: "completed" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should exclude the block itself from overlap check", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+      schedulingRepo.updateBlock.mockResolvedValue(updated as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      await service.updateBlock(userId, 1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+
+      expect(schedulingRepo.findOverlapping).toHaveBeenCalledWith(
+        userId,
+        mockBlock.startTime,
+        new Date("2026-04-16T11:00:00Z"),
+        [1],
+      );
+    });
+
+    it("should return conflict summaries when overlap found", async () => {
+      const conflicting = {
+        id: 7,
+        taskId: 11,
+        startTime: new Date("2026-04-16T10:30:00Z"),
+        endTime: new Date("2026-04-16T11:30:00Z"),
+      };
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+      schedulingRepo.updateBlock.mockResolvedValue(updated as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
+      tasksRepo.findById.mockResolvedValue({ ...mockTask, id: 11, title: "Run" } as any);
+
+      const result = await service.updateBlock(userId, 1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+
+      expect(result.conflicts).toEqual([
+        {
+          blockId: 7,
+          taskId: 11,
+          taskTitle: "Run",
+          startTime: conflicting.startTime.toISOString(),
+          endTime: conflicting.endTime.toISOString(),
+        },
+      ]);
     });
   });
 

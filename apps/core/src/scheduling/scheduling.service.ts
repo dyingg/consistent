@@ -4,9 +4,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { EVENTS } from "@consistent/realtime";
+import { scheduledBlocks } from "@consistent/db/schema";
 import { SchedulingRepository } from "./scheduling.repository";
 import { TasksRepository } from "../tasks/tasks.repository";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+
+type ScheduledBlock = typeof scheduledBlocks.$inferSelect;
 
 export interface CreateBlockInput {
   taskId: number;
@@ -14,6 +17,21 @@ export interface CreateBlockInput {
   endTime: Date;
   scheduledBy?: "llm" | "user" | "recurring";
   scheduleRunId?: number | null;
+}
+
+export interface UpdateBlockPatch {
+  status?: "planned" | "confirmed" | "completed" | "missed" | "moved";
+  startTime?: Date;
+  endTime?: Date;
+  taskId?: number;
+}
+
+export interface ConflictSummary {
+  blockId: number;
+  taskId: number;
+  taskTitle: string;
+  startTime: string;
+  endTime: string;
 }
 
 @Injectable()
@@ -78,6 +96,63 @@ export class SchedulingService {
     if (!updated) throw new NotFoundException("Scheduled block not found");
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
     return updated;
+  }
+
+  private async summarizeConflicts(
+    rawConflicts: Array<{
+      id: number;
+      taskId: number;
+      startTime: Date;
+      endTime: Date;
+    }>,
+  ): Promise<ConflictSummary[]> {
+    const summaries: ConflictSummary[] = [];
+    for (const c of rawConflicts) {
+      const task = await this.tasksRepo.findById(c.taskId);
+      summaries.push({
+        blockId: c.id,
+        taskId: c.taskId,
+        taskTitle: task?.title ?? "(unknown task)",
+        startTime: c.startTime.toISOString(),
+        endTime: c.endTime.toISOString(),
+      });
+    }
+    return summaries;
+  }
+
+  async updateBlock(
+    userId: string,
+    blockId: number,
+    patch: UpdateBlockPatch,
+  ): Promise<{ block: ScheduledBlock; conflicts: ConflictSummary[] }> {
+    const existing = await this.verifyBlockOwnership(userId, blockId);
+
+    if (patch.taskId !== undefined && patch.taskId !== existing.taskId) {
+      const task = await this.tasksRepo.findById(patch.taskId);
+      if (!task || task.userId !== userId) {
+        throw new NotFoundException("Task not found");
+      }
+    }
+
+    const effectiveStart = patch.startTime ?? existing.startTime;
+    const effectiveEnd = patch.endTime ?? existing.endTime;
+    if (effectiveStart >= effectiveEnd) {
+      throw new BadRequestException("Start time must be before end time");
+    }
+
+    const updated = await this.schedulingRepo.updateBlock(blockId, patch);
+    if (!updated) throw new NotFoundException("Scheduled block not found");
+
+    const rawConflicts = await this.schedulingRepo.findOverlapping(
+      userId,
+      effectiveStart,
+      effectiveEnd,
+      [blockId],
+    );
+    const conflicts = await this.summarizeConflicts(rawConflicts);
+
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
+    return { block: updated, conflicts };
   }
 
   async deleteBlock(userId: string, blockId: number) {
