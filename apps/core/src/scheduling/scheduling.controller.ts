@@ -55,15 +55,69 @@ export class SchedulingController {
   }
 
   @Patch("schedule/blocks/:id")
-  updateStatus(
+  updateBlock(
     @CurrentUser() user: any,
     @Param("id", ParseIntPipe) id: number,
     @Body()
     body: {
-      status: "planned" | "confirmed" | "completed" | "missed" | "moved";
+      status?: "planned" | "confirmed" | "completed" | "missed" | "moved";
+      startTime?: string;
+      endTime?: string;
+      taskId?: number;
     },
   ) {
-    return this.schedulingService.updateBlockStatus(user.id, id, body.status);
+    const patch: Parameters<SchedulingService["updateBlock"]>[2] = {};
+    if (body.status !== undefined) patch.status = body.status;
+    if (body.taskId !== undefined) patch.taskId = body.taskId;
+    if (body.startTime !== undefined) {
+      const d = new Date(body.startTime);
+      if (isNaN(d.getTime())) {
+        throw new BadRequestException("Invalid startTime format");
+      }
+      patch.startTime = d;
+    }
+    if (body.endTime !== undefined) {
+      const d = new Date(body.endTime);
+      if (isNaN(d.getTime())) {
+        throw new BadRequestException("Invalid endTime format");
+      }
+      patch.endTime = d;
+    }
+    return this.schedulingService.updateBlock(user.id, id, patch);
+  }
+
+  @Post("schedule/blocks/shift")
+  shift(
+    @CurrentUser() user: any,
+    @Body()
+    body: {
+      deltaMinutes: number;
+      blockIds?: number[];
+      afterTime?: string;
+    },
+  ) {
+    if (typeof body.deltaMinutes !== "number") {
+      throw new BadRequestException("deltaMinutes is required");
+    }
+    if ((body.blockIds && body.afterTime) || (!body.blockIds && !body.afterTime)) {
+      throw new BadRequestException(
+        "Provide exactly one of blockIds or afterTime",
+      );
+    }
+    if (body.blockIds) {
+      return this.schedulingService.shiftBlocks(user.id, {
+        blockIds: body.blockIds,
+        deltaMinutes: body.deltaMinutes,
+      });
+    }
+    const d = new Date(body.afterTime!);
+    if (isNaN(d.getTime())) {
+      throw new BadRequestException("Invalid afterTime format");
+    }
+    return this.schedulingService.shiftBlocks(user.id, {
+      afterTime: d,
+      deltaMinutes: body.deltaMinutes,
+    });
   }
 
   @Delete("schedule/blocks/:id")
