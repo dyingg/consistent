@@ -39,12 +39,38 @@ export class AiController {
     const messages = (result?.messages ?? []) as Array<Record<string, any>>;
 
     return {
-      messages: messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        createdAt: m.createdAt,
-      })),
+      messages: messages
+        .map((m) => {
+          const text = extractText(m.content);
+          if (!text) return null;
+          return {
+            id: m.id,
+            role: m.role,
+            parts: [{ type: "text", text }],
+            createdAt:
+              m.createdAt instanceof Date
+                ? m.createdAt.toISOString()
+                : m.createdAt,
+          };
+        })
+        .filter(Boolean),
     };
   }
+}
+
+function extractText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!content || typeof content !== "object") return "";
+  const parts = (content as { parts?: unknown }).parts;
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .filter(
+      (p): p is { type: string; text: string } =>
+        !!p &&
+        typeof p === "object" &&
+        (p as { type?: unknown }).type === "text" &&
+        typeof (p as { text?: unknown }).text === "string",
+    )
+    .map((p) => p.text)
+    .join("");
 }
