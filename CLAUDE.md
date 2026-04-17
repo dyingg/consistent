@@ -335,6 +335,18 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 - `PATCH /v1/schedule/blocks/:id` — Update block status
 - `DELETE /v1/schedule/blocks/:id` — Delete block
 
+### AI Assistant
+- `POST /chat/:agentId` — Streaming chat endpoint (mounted by Mastra, not under `/v1/`). Session cookie auth via `@mastra/auth-better-auth`. An Express middleware injects `memory: { resource, thread }` server-side so clients cannot target another user's thread. Agent id is `consistent-coach`.
+- `GET /v1/ai/threads/:threadId/messages` — Protected (`AuthGuard`). Enforces `threadId` ownership via `buildThreadId(userId)`. Returns Mastra-persisted thread messages in assistant-ui shape.
+
+## AI Module (`apps/core/src/ai/`)
+
+- **`consistent-coach` agent** — mentor-coach persona (`prompts/coach.ts`). Interview-first flow, Fibonacci sprint-point breakdown (1/2/3/5/8/13), writes `context` on every task, confirms in text before delete.
+- **16 tools** — `tools/{goals,tasks,scheduling}.tools.ts`. Each pulls `userId` from `requestContext.get("mastra__resourceId")` (populated by `MastraAuthBetterAuth`) and delegates to the existing services, which emit realtime events for free.
+- **Memory** — `memory.ts` creates a `Memory` backed by `PostgresStore` in schema `mastra`. `store.init()` runs at bootstrap and creates tables if missing.
+- **Bootstrap** — `ai.bootstrap.ts` mounts Mastra on Express during `onApplicationBootstrap`, with the `chatMemoryGuard` middleware registered before chat routes.
+- **Frontend** — `apps/web/src/components/coach/` uses `@assistant-ui/react` primitives + `useChatRuntime` + `AssistantChatTransport` pointed at `/chat/consistent-coach`. History loads via `ThreadHistoryAdapter`.
+
 ## Independent Deployment Model
 
 - API and web are versioned and deployed separately
@@ -419,7 +431,9 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 
 - Goal/task management UI (CRUD forms — dashboard shows read-only data from API)
 - Scheduling UI (creating/moving blocks — only API endpoints exist)
-- AI assistant backend (chat section is client-side canned responses)
+- Thread list UI for the assistant (single persistent thread per user today)
+- Rate limiting on `/chat/*`
+- Working memory / agent-initiated proactive messages
 - Email verification / password reset (Better Auth supports it, just not enabled)
 - OAuth providers
 - Rate limiting on auth endpoints
