@@ -75,6 +75,7 @@ export class SchedulingService {
   ) {
     await this.verifyBlockOwnership(userId, blockId);
     const updated = await this.schedulingRepo.updateBlockStatus(blockId, status);
+    if (!updated) throw new NotFoundException("Scheduled block not found");
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
     return updated;
   }
@@ -82,6 +83,7 @@ export class SchedulingService {
   async deleteBlock(userId: string, blockId: number) {
     await this.verifyBlockOwnership(userId, blockId);
     const deleted = await this.schedulingRepo.deleteBlock(blockId);
+    if (!deleted) throw new NotFoundException("Scheduled block not found");
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
     return deleted;
   }
