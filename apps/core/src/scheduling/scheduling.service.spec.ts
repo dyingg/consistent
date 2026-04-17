@@ -424,6 +424,101 @@ describe("SchedulingService", () => {
     });
   });
 
+  // ── shiftBlocks ─────────────────────────────────────────
+
+  describe("shiftBlocks", () => {
+    const block1 = { ...mockBlock, id: 1 };
+    const block2 = {
+      ...mockBlock,
+      id: 2,
+      startTime: new Date("2026-04-16T11:00:00Z"),
+      endTime: new Date("2026-04-16T12:00:00Z"),
+    };
+
+    it("should shift explicit blockIds after ownership check", async () => {
+      schedulingRepo.findBlockById.mockImplementation(async (id: number) =>
+        id === 1 ? (block1 as any) : (block2 as any),
+      );
+      const shifted = [
+        { ...block1, startTime: new Date("2026-04-16T09:30:00Z"), endTime: new Date("2026-04-16T10:30:00Z") },
+        { ...block2, startTime: new Date("2026-04-16T11:30:00Z"), endTime: new Date("2026-04-16T12:30:00Z") },
+      ];
+      schedulingRepo.shiftBlocks.mockResolvedValue(shifted as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      const result = await service.shiftBlocks(userId, {
+        blockIds: [1, 2],
+        deltaMinutes: 30,
+      });
+
+      expect(schedulingRepo.shiftBlocks).toHaveBeenCalledWith([1, 2], 30);
+      expect(result.blocks).toEqual(shifted);
+      expect(result.conflicts).toEqual([]);
+    });
+
+    it("should resolve afterTime selector by querying blocks >= afterTime", async () => {
+      schedulingRepo.getBlocksForRange.mockResolvedValue([block1, block2] as any);
+      schedulingRepo.shiftBlocks.mockResolvedValue([block1, block2] as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      await service.shiftBlocks(userId, {
+        afterTime: new Date("2026-04-16T08:00:00Z"),
+        deltaMinutes: 15,
+      });
+
+      expect(schedulingRepo.shiftBlocks).toHaveBeenCalledWith([1, 2], 15);
+    });
+
+    it("should reject when both selectors provided", async () => {
+      await expect(
+        service.shiftBlocks(userId, {
+          blockIds: [1],
+          afterTime: new Date(),
+          deltaMinutes: 10,
+        } as any),
+      ).rejects.toThrow("Provide exactly one of blockIds or afterTime");
+    });
+
+    it("should reject when neither selector provided", async () => {
+      await expect(
+        service.shiftBlocks(userId, { deltaMinutes: 10 } as any),
+      ).rejects.toThrow("Provide exactly one of blockIds or afterTime");
+    });
+
+    it("should reject deltaMinutes of 0", async () => {
+      await expect(
+        service.shiftBlocks(userId, { blockIds: [1], deltaMinutes: 0 }),
+      ).rejects.toThrow("deltaMinutes must be non-zero");
+    });
+
+    it("should throw when a blockId is not owned", async () => {
+      schedulingRepo.findBlockById.mockImplementation(async (id: number) =>
+        id === 1 ? (block1 as any) : null,
+      );
+
+      await expect(
+        service.shiftBlocks(userId, { blockIds: [1, 999], deltaMinutes: 30 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should exclude the shifted cohort from conflict detection", async () => {
+      schedulingRepo.findBlockById.mockImplementation(async (id: number) =>
+        id === 1 ? (block1 as any) : (block2 as any),
+      );
+      schedulingRepo.shiftBlocks.mockResolvedValue([block1, block2] as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      await service.shiftBlocks(userId, { blockIds: [1, 2], deltaMinutes: 30 });
+
+      expect(schedulingRepo.findOverlapping).toHaveBeenCalledWith(
+        userId,
+        expect.any(Date),
+        expect.any(Date),
+        [1, 2],
+      );
+    });
+  });
+
   // ── deleteBlock ─────────────────────────────────────────
 
   describe("deleteBlock", () => {

@@ -34,6 +34,10 @@ export interface ConflictSummary {
   endTime: string;
 }
 
+export type ShiftBlocksInput =
+  | { blockIds: number[]; deltaMinutes: number; afterTime?: undefined }
+  | { afterTime: Date; deltaMinutes: number; blockIds?: undefined };
+
 @Injectable()
 export class SchedulingService {
   constructor(
@@ -153,6 +157,70 @@ export class SchedulingService {
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
     return { block: updated, conflicts };
+  }
+
+  async shiftBlocks(userId: string, input: ShiftBlocksInput) {
+    const hasIds = Array.isArray(input.blockIds) && input.blockIds.length > 0;
+    const hasAfter = input.afterTime instanceof Date;
+    if (hasIds === hasAfter) {
+      throw new BadRequestException(
+        "Provide exactly one of blockIds or afterTime",
+      );
+    }
+    if (!input.deltaMinutes) {
+      throw new BadRequestException("deltaMinutes must be non-zero");
+    }
+
+    let ids: number[];
+    if (hasIds) {
+      ids = input.blockIds!;
+      for (const id of ids) {
+        await this.verifyBlockOwnership(userId, id);
+      }
+    } else {
+      const far = new Date("9999-12-31T00:00:00Z");
+      const blocks = await this.schedulingRepo.getBlocksForRange(
+        userId,
+        input.afterTime!,
+        far,
+      );
+      ids = blocks.map((b) => b.id);
+    }
+
+    if (ids.length === 0) {
+      return { blocks: [], conflicts: [] };
+    }
+
+    const shifted = await this.schedulingRepo.shiftBlocks(
+      ids,
+      input.deltaMinutes,
+    );
+    shifted.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+    let rawConflicts: Array<{
+      id: number;
+      taskId: number;
+      startTime: Date;
+      endTime: Date;
+    }> = [];
+    if (shifted.length > 0) {
+      const minStart = shifted[0]!.startTime;
+      const maxEnd = shifted.reduce(
+        (acc, b) => (b.endTime > acc ? b.endTime : acc),
+        shifted[0]!.endTime,
+      );
+      rawConflicts = await this.schedulingRepo.findOverlapping(
+        userId,
+        minStart,
+        maxEnd,
+        ids,
+      );
+    }
+    const conflicts = await this.summarizeConflicts(rawConflicts);
+
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});
+
+    return { blocks: shifted, conflicts };
   }
 
   async deleteBlock(userId: string, blockId: number) {
