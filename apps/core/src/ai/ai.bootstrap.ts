@@ -37,9 +37,7 @@ export class MastraBootstrap implements OnApplicationBootstrap {
       app: express,
       mastra: this.mastra,
     });
-    server.registerContextMiddleware();
-    server.registerAuthMiddleware();
-    await server.registerCustomApiRoutes();
+    await server.init();
 
     this.logger.log("Mastra chat routes mounted at /chat/*");
   }
