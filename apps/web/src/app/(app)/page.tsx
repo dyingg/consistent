@@ -9,12 +9,12 @@ import { useRealtime } from "@/lib/use-realtime";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LogOut,
-  Send,
   Check,
   Loader2,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { Coach } from "@/components/coach/coach";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,25 +49,6 @@ interface EnrichedBlock {
     color: string | null;
   };
 }
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "ai";
-  text: string;
-}
-
-// ---------------------------------------------------------------------------
-// Static data (assistant only)
-// ---------------------------------------------------------------------------
-
-const aiResponses = [
-  "Great job staying consistent! You've completed 3 tasks already today. Keep the momentum going.",
-  "Your marathon training is on track. Remember to hydrate well before your afternoon run.",
-  "I noticed you finished your flashcards early today. Want me to schedule an extra Spanish practice session?",
-  "Your side project is at 65% — you're in the home stretch. Focus on the auth bug first, it'll unblock the rest.",
-  "You've meditated every day this week. That's a 7-day streak! Want to try extending to 15 minutes?",
-  "Looking at your schedule, you have a gap between 1:00 and 2:00 PM. Want me to slot in some reading time?",
-];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -739,137 +720,10 @@ function ScheduleSection() {
 // ---------------------------------------------------------------------------
 
 function AIChatSection() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "m0",
-      role: "ai",
-      text: "You've got a solid day ahead. Your Duolingo lesson is up first — want me to adjust anything?",
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const msgCounter = useRef(1);
-
-  const scrollToBottom = useCallback(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping, scrollToBottom]);
-
-  const handleSend = () => {
-    const text = input.trim();
-    if (!text) return;
-
-    const userMsg: ChatMessage = {
-      id: `m${msgCounter.current++}`,
-      role: "user",
-      text,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setIsTyping(true);
-
-    setTimeout(() => {
-      const aiText =
-        aiResponses[Math.floor(Math.random() * aiResponses.length)];
-      const aiMsg: ChatMessage = {
-        id: `m${msgCounter.current++}`,
-        role: "ai",
-        text: aiText,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-      setIsTyping(false);
-    }, 1200 + Math.random() * 800);
-  };
-
   return (
     <div>
       <SectionLabel>Assistant</SectionLabel>
-
-      <div className="rounded-xl bg-card overflow-hidden">
-        {/* Messages */}
-        <div
-          ref={scrollRef}
-          className="max-h-[200px] overflow-y-auto px-5 py-4 space-y-3"
-        >
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: easeOutExpo }}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[85%] text-[0.9375rem] leading-relaxed ${
-                  msg.role === "user"
-                    ? "px-3.5 py-2.5 rounded-lg bg-muted text-foreground"
-                    : "text-foreground/80"
-                }`}
-              >
-                {msg.text}
-              </div>
-            </motion.div>
-          ))}
-
-          {/* Typing indicator — breathing dots, no bounce */}
-          <AnimatePresence>
-            {isTyping && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex gap-1.5 pt-1"
-              >
-                {[0, 1, 2].map((i) => (
-                  <motion.span
-                    key={i}
-                    className="w-1.5 h-1.5 rounded-full bg-foreground/30"
-                    animate={{ opacity: [0.2, 0.7, 0.2] }}
-                    transition={{
-                      duration: 1.5,
-                      repeat: Infinity,
-                      delay: i * 0.2,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Input bar */}
-        <div className="px-3 pb-3 pt-1">
-          <div className="flex items-center gap-3 rounded-lg bg-background px-3.5 py-3">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Ask anything..."
-              className="flex-1 bg-transparent text-[0.9375rem] text-foreground placeholder:text-muted-foreground/50 outline-none"
-            />
-            <button
-              type="button"
-              onClick={handleSend}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-150"
-            >
-            <Send size={15} />
-          </button>
-          </div>
-        </div>
-      </div>
+      <Coach />
     </div>
   );
 }
