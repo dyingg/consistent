@@ -148,6 +148,85 @@ describe("SchedulingRepository", () => {
     });
   });
 
+  describe("updateBlock", () => {
+    it("should update partial columns and return row", async () => {
+      const updatedBlock = {
+        ...mockBlock,
+        startTime: new Date("2026-04-16T09:30:00Z"),
+      };
+      const chain = chainMock([updatedBlock], ["set", "where", "returning"]);
+      db.update.mockReturnValue(chain);
+
+      const result = await repo.updateBlock(1, {
+        startTime: new Date("2026-04-16T09:30:00Z"),
+      });
+
+      expect(result).toEqual(updatedBlock);
+      expect(chain.set).toHaveBeenCalledWith({
+        startTime: new Date("2026-04-16T09:30:00Z"),
+      });
+    });
+
+    it("should forward multiple fields to set()", async () => {
+      const chain = chainMock([mockBlock], ["set", "where", "returning"]);
+      db.update.mockReturnValue(chain);
+
+      await repo.updateBlock(1, {
+        status: "completed",
+        taskId: 42,
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+
+      expect(chain.set).toHaveBeenCalledWith({
+        status: "completed",
+        taskId: 42,
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+    });
+
+    it("should return null when no row updated", async () => {
+      const chain = chainMock([], ["set", "where", "returning"]);
+      db.update.mockReturnValue(chain);
+
+      const result = await repo.updateBlock(999, { status: "completed" });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("findOverlapping", () => {
+    it("should run a select filtered by userId and time range", async () => {
+      const blocks = [mockBlock];
+      const chain = chainMock(blocks, ["from", "where"]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.findOverlapping(
+        "user-1",
+        new Date("2026-04-16T09:00:00Z"),
+        new Date("2026-04-16T10:00:00Z"),
+      );
+
+      expect(result).toEqual(blocks);
+      expect(db.select).toHaveBeenCalled();
+      expect(chain.where).toHaveBeenCalled();
+    });
+
+    it("should accept excludeIds and still return rows", async () => {
+      const chain = chainMock([], ["from", "where"]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.findOverlapping(
+        "user-1",
+        new Date("2026-04-16T09:00:00Z"),
+        new Date("2026-04-16T10:00:00Z"),
+        [1, 2],
+      );
+
+      expect(result).toEqual([]);
+      expect(chain.where).toHaveBeenCalled();
+    });
+  });
+
   describe("deleteBlock", () => {
     it("should delete block and return it", async () => {
       const chain = chainMock([mockBlock], ["where", "returning"]);

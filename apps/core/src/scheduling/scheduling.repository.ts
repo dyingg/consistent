@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq, and, gte, lte, desc, asc } from "drizzle-orm";
+import { eq, and, gte, lte, lt, gt, desc, asc, notInArray } from "drizzle-orm";
 import {
   scheduleRuns,
   scheduledBlocks,
@@ -48,6 +48,43 @@ export class SchedulingRepository {
       .where(eq(scheduledBlocks.id, id))
       .returning();
     return rows.at(0) ?? null;
+  }
+
+  async updateBlock(
+    id: number,
+    patch: Partial<
+      Pick<
+        typeof scheduledBlocks.$inferInsert,
+        "status" | "startTime" | "endTime" | "taskId"
+      >
+    >,
+  ) {
+    const rows = await this.db
+      .update(scheduledBlocks)
+      .set(patch)
+      .where(eq(scheduledBlocks.id, id))
+      .returning();
+    return rows.at(0) ?? null;
+  }
+
+  async findOverlapping(
+    userId: string,
+    start: Date,
+    end: Date,
+    excludeIds: number[] = [],
+  ) {
+    const conditions = [
+      eq(scheduledBlocks.userId, userId),
+      lt(scheduledBlocks.startTime, end),
+      gt(scheduledBlocks.endTime, start),
+    ];
+    if (excludeIds.length > 0) {
+      conditions.push(notInArray(scheduledBlocks.id, excludeIds));
+    }
+    return this.db
+      .select()
+      .from(scheduledBlocks)
+      .where(and(...conditions));
   }
 
   async findBlockById(id: number) {
