@@ -22,8 +22,17 @@ export function Coach() {
       new AssistantChatTransport({
         api: `${API_URL}/chat/consistent-coach`,
         credentials: "include" as const,
+        prepareSendMessagesRequest: ({ messages, body }) => ({
+          body: {
+            ...(body ?? {}),
+            messages,
+            ...(threadId && userId
+              ? { memory: { resource: userId, thread: threadId } }
+              : {}),
+          },
+        }),
       }),
-    [],
+    [threadId, userId],
   );
 
   const adapters = useMemo(
