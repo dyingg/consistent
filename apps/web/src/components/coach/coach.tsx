@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import {
   useChatRuntime,
@@ -18,15 +18,40 @@ type HistoryMessage = {
   createdAt?: string;
 };
 
+const subIdKey = (userId: string) => `coach:subId:${userId}`;
+
 export function Coach() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
-  const threadId = userId ? buildThreadId(userId) : null;
+
+  const [subId, setSubId] = useState<string | null>(null);
+  const [subIdReady, setSubIdReady] = useState(false);
+
+  useEffect(() => {
+    if (!userId) {
+      setSubId(null);
+      setSubIdReady(false);
+      return;
+    }
+    try {
+      setSubId(localStorage.getItem(subIdKey(userId)));
+    } catch {
+      setSubId(null);
+    }
+    setSubIdReady(true);
+  }, [userId]);
+
+  const threadId = useMemo(
+    () => (userId ? buildThreadId(userId, subId ?? undefined) : null),
+    [userId, subId],
+  );
 
   const [history, setHistory] = useState<HistoryMessage[] | null>(null);
+  const clientCreatedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!threadId) return;
+    if (clientCreatedRef.current.has(threadId)) return;
     let cancelled = false;
     setHistory(null);
     (async () => {
@@ -51,6 +76,21 @@ export function Coach() {
     };
   }, [threadId]);
 
+  const startNewThread = useCallback(() => {
+    if (!userId) return;
+    const newSubId =
+      globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}`;
+    const newThreadId = buildThreadId(userId, newSubId);
+    try {
+      localStorage.setItem(subIdKey(userId), newSubId);
+    } catch {
+      // ignore storage errors; in-memory state still rotates
+    }
+    clientCreatedRef.current.add(newThreadId);
+    setHistory([]);
+    setSubId(newSubId);
+  }, [userId]);
+
   if (!userId) {
     return (
       <div className="rounded-xl bg-card p-4 text-sm text-foreground/60">
@@ -59,9 +99,9 @@ export function Coach() {
     );
   }
 
-  if (history === null) {
+  if (!subIdReady || history === null) {
     return (
-      <div className="rounded-xl bg-card p-4 text-sm text-foreground/60">
+      <div className="flex h-[320px] items-center justify-center rounded-xl bg-card p-4 text-sm text-foreground/60">
         Loading conversation…
       </div>
     );
@@ -69,9 +109,11 @@ export function Coach() {
 
   return (
     <CoachRuntime
+      key={threadId ?? "none"}
       userId={userId}
       threadId={threadId!}
       initialMessages={history}
+      onNewThread={startNewThread}
     />
   );
 }
@@ -80,10 +122,12 @@ function CoachRuntime({
   userId,
   threadId,
   initialMessages,
+  onNewThread,
 }: {
   userId: string;
   threadId: string;
   initialMessages: HistoryMessage[];
+  onNewThread: () => void;
 }) {
   const transport = useMemo(
     () =>
@@ -108,7 +152,7 @@ function CoachRuntime({
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <Thread />
+      <Thread onNewThread={onNewThread} />
     </AssistantRuntimeProvider>
   );
 }

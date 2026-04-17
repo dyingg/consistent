@@ -4,11 +4,23 @@ import {
   MessagePrimitive,
   ComposerPrimitive,
 } from "@assistant-ui/react";
+import { Plus } from "lucide-react";
 import { MarkdownText } from "./markdown-text";
 
-export function Thread() {
+export function Thread({ onNewThread }: { onNewThread?: () => void }) {
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-[320px] bg-card rounded-xl overflow-hidden">
+    <ThreadPrimitive.Root className="relative flex flex-col h-[320px] bg-card rounded-xl overflow-hidden">
+      {onNewThread ? (
+        <button
+          type="button"
+          onClick={onNewThread}
+          aria-label="Start new thread"
+          title="Start new thread"
+          className="absolute top-2 right-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md text-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus size={14} strokeWidth={2} />
+        </button>
+      ) : null}
       <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
         <ThreadPrimitive.Empty>
           <p className="text-foreground/60 text-sm">
