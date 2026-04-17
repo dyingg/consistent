@@ -18,8 +18,10 @@ export const env = createEnv({
     ANTHROPIC_API_KEY: z.string().optional(),
   },
   runtimeEnv: process.env,
-  createFinalSchema: (shape) =>
-    z.object(shape).superRefine((data, ctx) => {
+  createFinalSchema: (shape, isServer) => {
+    const base = z.object(shape);
+    if (!isServer) return base;
+    return base.superRefine((data, ctx) => {
       if (data.AI_MODEL.startsWith("openai/") && !data.OPENAI_API_KEY) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -36,5 +38,6 @@ export const env = createEnv({
           path: ["ANTHROPIC_API_KEY"],
         });
       }
-    }),
+    });
+  },
 });
