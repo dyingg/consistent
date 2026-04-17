@@ -10,7 +10,8 @@ export function createMastra(agent: Agent, store: PostgresStore): Mastra {
     agents: { "consistent-coach": agent } as any,
     storage: store as any,
     server: {
-      experimental_auth: new MastraAuthBetterAuth({ auth: auth as any }) as any,
+      apiPrefix: "",
+      auth: new MastraAuthBetterAuth({ auth: auth as any }) as any,
       apiRoutes: [chatRoute({ path: "/chat/:agentId" })],
     } as any,
   });
