@@ -47,7 +47,7 @@ export class SchedulingRepository {
       .set({ status })
       .where(eq(scheduledBlocks.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async findBlockById(id: number) {
@@ -56,7 +56,7 @@ export class SchedulingRepository {
       .from(scheduledBlocks)
       .where(eq(scheduledBlocks.id, id))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async deleteBlock(id: number) {
@@ -64,7 +64,7 @@ export class SchedulingRepository {
       .delete(scheduledBlocks)
       .where(eq(scheduledBlocks.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async getBlocksForRangeWithDetails(
@@ -141,6 +141,6 @@ export class SchedulingRepository {
       )
       .orderBy(desc(scheduledBlocks.startTime))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 }

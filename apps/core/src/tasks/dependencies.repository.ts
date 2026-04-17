@@ -57,6 +57,6 @@ export class DependenciesRepository {
         ),
       )
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 }

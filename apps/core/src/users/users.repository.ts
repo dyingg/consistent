@@ -13,7 +13,7 @@ export class UsersRepository {
       .from(user)
       .where(eq(user.id, id))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async findByEmail(email: string) {
@@ -22,7 +22,7 @@ export class UsersRepository {
       .from(user)
       .where(eq(user.email, email))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async updatePreferences(id: string, preferences: Partial<UserPreferences>) {
@@ -31,7 +31,7 @@ export class UsersRepository {
       .set({ preferences })
       .where(eq(user.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async updateTimezone(id: string, timezone: string) {
@@ -40,6 +40,6 @@ export class UsersRepository {
       .set({ timezone })
       .where(eq(user.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 }

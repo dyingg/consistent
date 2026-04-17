@@ -17,7 +17,7 @@ export class TasksRepository {
       .from(tasks)
       .where(eq(tasks.id, id))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async create(data: typeof tasks.$inferInsert) {
@@ -31,7 +31,7 @@ export class TasksRepository {
       .set(data)
       .where(eq(tasks.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async delete(id: number) {
@@ -39,7 +39,7 @@ export class TasksRepository {
       .delete(tasks)
       .where(eq(tasks.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   /**
