@@ -84,6 +84,7 @@ describe("SchedulingService", () => {
     it("should create a block for an owned task", async () => {
       tasksRepo.findById.mockResolvedValue(mockTask as any);
       schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
 
       const result = await service.createBlock(userId, {
         taskId: 10,
@@ -92,7 +93,7 @@ describe("SchedulingService", () => {
         scheduledBy: "user",
       });
 
-      expect(result).toEqual(mockBlock);
+      expect(result).toEqual({ block: mockBlock, conflicts: [] });
       expect(schedulingRepo.createBlock).toHaveBeenCalledWith(
         expect.objectContaining({
           userId,
@@ -168,6 +169,7 @@ describe("SchedulingService", () => {
     it("should pass optional scheduledBy and scheduleRunId", async () => {
       tasksRepo.findById.mockResolvedValue(mockTask as any);
       schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
 
       await service.createBlock(userId, {
         taskId: 10,
@@ -183,6 +185,31 @@ describe("SchedulingService", () => {
           scheduleRunId: 42,
         }),
       );
+    });
+
+    it("should include overlap conflicts in the response", async () => {
+      const conflicting = {
+        id: 7,
+        taskId: 11,
+        startTime: new Date("2026-04-16T09:30:00Z"),
+        endTime: new Date("2026-04-16T10:30:00Z"),
+      };
+      tasksRepo.findById.mockImplementation(async (id: number) =>
+        id === 11
+          ? ({ ...mockTask, id: 11, title: "Run" } as any)
+          : (mockTask as any),
+      );
+      schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
+
+      const result = await service.createBlock(userId, {
+        taskId: 10,
+        startTime: new Date("2026-04-16T09:00:00Z"),
+        endTime: new Date("2026-04-16T10:00:00Z"),
+      });
+
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0].blockId).toBe(7);
     });
   });
 

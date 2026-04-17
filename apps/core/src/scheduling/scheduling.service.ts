@@ -75,8 +75,18 @@ export class SchedulingService {
       scheduledBy: data.scheduledBy,
       scheduleRunId: data.scheduleRunId,
     });
-    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId: block.id });
-    return block;
+    const rawConflicts = await this.schedulingRepo.findOverlapping(
+      userId,
+      startTime,
+      endTime,
+      [block.id],
+    );
+    const conflicts = await this.summarizeConflicts(rawConflicts);
+
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {
+      blockId: block.id,
+    });
+    return { block, conflicts };
   }
 
   async getBlocksForRange(userId: string, start: Date, end: Date) {
