@@ -13,7 +13,7 @@ export const env = createEnv({
       .transform(Number)
       .pipe(z.number().int().positive())
       .default("3001"),
-    AI_MODEL: z.string().default("openai/gpt-5.2"),
+    AI_MODEL: z.string().default("openai/gpt-5.4"),
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
     LANGSMITH_TRACING: z

@@ -4,6 +4,7 @@ import {
   MessagePrimitive,
   ComposerPrimitive,
 } from "@assistant-ui/react";
+import { MarkdownText } from "./markdown-text";
 
 export function Thread() {
   return (
@@ -50,8 +51,8 @@ function UserMessage() {
 function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex justify-start">
-      <div className="max-w-[85%] text-foreground/80 text-[0.9375rem] leading-relaxed whitespace-pre-wrap">
-        <MessagePrimitive.Content />
+      <div className="max-w-[85%] text-foreground/80 text-[0.9375rem] leading-relaxed">
+        <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
       </div>
     </MessagePrimitive.Root>
   );
