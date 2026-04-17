@@ -78,20 +78,33 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
 
   const updateBlock = createTool({
     id: "update-block",
-    description: "Update a scheduled block's status.",
+    description:
+      "Partial update on a scheduled block. Any subset of { status, startTime, endTime, taskId } is valid — e.g. send only endTime to extend the block. Returns { block, conflicts }; surface any conflicts to the user rather than silently overwriting.",
     inputSchema: z.object({
       blockId: z.number(),
-      status: z.enum(["planned", "confirmed", "completed", "missed", "moved"]),
+      status: z
+        .enum(["planned", "confirmed", "completed", "missed", "moved"])
+        .optional(),
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+      taskId: z.number().optional(),
     }),
     outputSchema: z.any(),
     execute: async (input, context) =>
-      safe(async () => ({
-        block: await schedulingService.updateBlockStatus(
+      safe(async () => {
+        const patch: Parameters<SchedulingService["updateBlock"]>[2] = {};
+        if (input.status !== undefined) patch.status = input.status;
+        if (input.taskId !== undefined) patch.taskId = input.taskId;
+        if (input.startTime !== undefined)
+          patch.startTime = new Date(input.startTime);
+        if (input.endTime !== undefined)
+          patch.endTime = new Date(input.endTime);
+        return schedulingService.updateBlock(
           getUserId(context),
           input.blockId,
-          input.status,
-        ),
-      })),
+          patch,
+        );
+      }),
   });
 
   const deleteBlock = createTool({

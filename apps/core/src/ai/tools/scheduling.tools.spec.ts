@@ -14,6 +14,7 @@ describe("scheduling tools", () => {
     getCurrentBlock: jest.fn(),
     createBlock: jest.fn(),
     updateBlockStatus: jest.fn(),
+    updateBlock: jest.fn(),
     deleteBlock: jest.fn(),
   } as unknown as SchedulingService;
 
@@ -54,17 +55,39 @@ describe("scheduling tools", () => {
     });
   });
 
-  it("update-block calls updateBlockStatus", async () => {
-    (svc.updateBlockStatus as jest.Mock).mockResolvedValue({ id: 1 });
+  it("update-block forwards status-only patch to service.updateBlock", async () => {
+    (svc.updateBlock as jest.Mock) = jest.fn().mockResolvedValue({
+      block: { id: 1 },
+      conflicts: [],
+    });
     await tools["update-block"].execute!(
       { blockId: 1, status: "completed" },
       mockContext,
     );
-    expect(svc.updateBlockStatus).toHaveBeenCalledWith(
-      "user-123",
-      1,
-      "completed",
+    expect(svc.updateBlock).toHaveBeenCalledWith("user-123", 1, {
+      status: "completed",
+    });
+  });
+
+  it("update-block converts ISO times to Date and passes taskId", async () => {
+    (svc.updateBlock as jest.Mock) = jest.fn().mockResolvedValue({
+      block: { id: 1 },
+      conflicts: [],
+    });
+    await tools["update-block"].execute!(
+      {
+        blockId: 1,
+        startTime: "2026-04-17T09:00:00Z",
+        endTime: "2026-04-17T10:30:00Z",
+        taskId: 42,
+      },
+      mockContext,
     );
+    expect(svc.updateBlock).toHaveBeenCalledWith("user-123", 1, {
+      startTime: new Date("2026-04-17T09:00:00Z"),
+      endTime: new Date("2026-04-17T10:30:00Z"),
+      taskId: 42,
+    });
   });
 
   it("delete-block calls deleteBlock", async () => {
