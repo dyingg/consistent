@@ -16,6 +16,9 @@ export const env = createEnv({
     AI_MODEL: z.string().default("openai/gpt-5.2"),
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
+    MASTRA_CLOUD_ACCESS_TOKEN: z.string().optional(),
+    MASTRA_PROJECT_ID: z.string().optional(),
+    MASTRA_CLOUD_TRACES_ENDPOINT: z.string().url().optional(),
   },
   runtimeEnv: process.env,
   createFinalSchema: (shape, isServer) => {
