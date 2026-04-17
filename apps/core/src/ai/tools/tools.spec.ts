@@ -1,7 +1,15 @@
 import { GoalsService } from "../../goals/goals.service";
 import { TasksService } from "../../tasks/tasks.service";
 import { SchedulingService } from "../../scheduling/scheduling.service";
+import type { UsersRepository } from "../../users/users.repository";
 import { createTools } from "./index";
+
+const mockUsersRepository = {
+  findById: jest.fn().mockResolvedValue({ id: "user-123", timezone: "UTC" }),
+  findByEmail: jest.fn(),
+  updatePreferences: jest.fn(),
+  updateTimezone: jest.fn(),
+} as unknown as UsersRepository;
 
 describe("createTools", () => {
   const mockGoalsService = {
@@ -30,10 +38,19 @@ describe("createTools", () => {
     deleteBlock: jest.fn(),
   } as unknown as SchedulingService;
 
-  const tools = createTools(mockGoalsService, mockTasksService, mockSchedulingService);
+  const tools = createTools(
+    mockGoalsService,
+    mockTasksService,
+    mockSchedulingService,
+    mockUsersRepository,
+  );
 
-  it("should create all 16 tools", () => {
-    expect(Object.keys(tools)).toHaveLength(16);
+  it("should create all 17 tools", () => {
+    expect(Object.keys(tools)).toHaveLength(17);
+  });
+
+  it("should include the time tool", () => {
+    expect(tools["get-current-time"]).toBeDefined();
   });
 
   it("should include all goal tools", () => {
@@ -75,7 +92,12 @@ describe("goal tool execution", () => {
   const mockTasksService = {} as unknown as TasksService;
   const mockSchedulingService = {} as unknown as SchedulingService;
 
-  const tools = createTools(mockGoalsService, mockTasksService, mockSchedulingService);
+  const tools = createTools(
+    mockGoalsService,
+    mockTasksService,
+    mockSchedulingService,
+    mockUsersRepository,
+  );
 
   // RequestContext uses a Map internally; mock the .get() interface
   const mockRequestContext = {
