@@ -51,7 +51,6 @@ describe("SchedulingService", () => {
             getBlocksForRange: jest.fn(),
             getBlocksForRangeWithDetails: jest.fn(),
             getCurrentBlock: jest.fn(),
-            updateBlockStatus: jest.fn(),
             updateBlock: jest.fn(),
             findOverlapping: jest.fn(),
             shiftBlocks: jest.fn(),
@@ -264,87 +263,6 @@ describe("SchedulingService", () => {
           new Date("2026-04-16T00:00:00Z"),
         ),
       ).rejects.toThrow("Start must be before end");
-    });
-  });
-
-  // ── updateBlockStatus ───────────────────────────────────
-
-  describe("updateBlockStatus", () => {
-    it("should update status of an owned block", async () => {
-      const updatedBlock = { ...mockBlock, status: "confirmed" as const };
-      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue(updatedBlock as any);
-
-      const result = await service.updateBlockStatus(
-        userId,
-        1,
-        "confirmed",
-      );
-
-      expect(result).toEqual(updatedBlock);
-      expect(schedulingRepo.updateBlockStatus).toHaveBeenCalledWith(
-        1,
-        "confirmed",
-      );
-    });
-
-    it("should allow updating to completed status", async () => {
-      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue({
-        ...mockBlock,
-        status: "completed",
-      } as any);
-
-      const result = await service.updateBlockStatus(
-        userId,
-        1,
-        "completed",
-      );
-
-      expect(result.status).toBe("completed");
-    });
-
-    it("should allow updating to missed status", async () => {
-      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue({
-        ...mockBlock,
-        status: "missed",
-      } as any);
-
-      const result = await service.updateBlockStatus(userId, 1, "missed");
-
-      expect(result.status).toBe("missed");
-    });
-
-    it("should allow updating to moved status", async () => {
-      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue({
-        ...mockBlock,
-        status: "moved",
-      } as any);
-
-      const result = await service.updateBlockStatus(userId, 1, "moved");
-
-      expect(result.status).toBe("moved");
-    });
-
-    it("should throw NotFoundException when block does not exist", async () => {
-      schedulingRepo.findBlockById.mockResolvedValue(null);
-
-      await expect(
-        service.updateBlockStatus(userId, 999, "confirmed"),
-      ).rejects.toThrow(NotFoundException);
-      await expect(
-        service.updateBlockStatus(userId, 999, "confirmed"),
-      ).rejects.toThrow("Scheduled block not found");
-    });
-
-    it("should throw NotFoundException when block belongs to another user", async () => {
-      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-
-      await expect(
-        service.updateBlockStatus(otherUserId, 1, "confirmed"),
-      ).rejects.toThrow(NotFoundException);
     });
   });
 

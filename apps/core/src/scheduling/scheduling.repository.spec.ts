@@ -123,31 +123,6 @@ describe("SchedulingRepository", () => {
     });
   });
 
-  describe("updateBlockStatus", () => {
-    it("should update block status and return it", async () => {
-      const updatedBlock = { ...mockBlock, status: "completed" };
-      const chain = chainMock([updatedBlock], ["set", "where", "returning"]);
-      db.update.mockReturnValue(chain);
-
-      const result = await repo.updateBlockStatus(1, "completed");
-
-      expect(result).toEqual(updatedBlock);
-      expect(db.update).toHaveBeenCalled();
-      expect(chain.set).toHaveBeenCalled();
-      expect(chain.where).toHaveBeenCalled();
-      expect(chain.returning).toHaveBeenCalled();
-    });
-
-    it("should return null when block not found", async () => {
-      const chain = chainMock([], ["set", "where", "returning"]);
-      db.update.mockReturnValue(chain);
-
-      const result = await repo.updateBlockStatus(999, "missed");
-
-      expect(result).toBeNull();
-    });
-  });
-
   describe("updateBlock", () => {
     it("should update partial columns and return row", async () => {
       const updatedBlock = {

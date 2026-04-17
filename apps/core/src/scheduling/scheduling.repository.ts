@@ -38,18 +38,6 @@ export class SchedulingRepository {
       );
   }
 
-  async updateBlockStatus(
-    id: number,
-    status: "planned" | "confirmed" | "completed" | "missed" | "moved",
-  ) {
-    const rows = await this.db
-      .update(scheduledBlocks)
-      .set({ status })
-      .where(eq(scheduledBlocks.id, id))
-      .returning();
-    return rows.at(0) ?? null;
-  }
-
   async updateBlock(
     id: number,
     patch: Partial<

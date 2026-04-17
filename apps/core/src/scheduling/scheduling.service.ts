@@ -100,18 +100,6 @@ export class SchedulingService {
     return this.schedulingRepo.getCurrentBlock(userId);
   }
 
-  async updateBlockStatus(
-    userId: string,
-    blockId: number,
-    status: "planned" | "confirmed" | "completed" | "missed" | "moved",
-  ) {
-    await this.verifyBlockOwnership(userId, blockId);
-    const updated = await this.schedulingRepo.updateBlockStatus(blockId, status);
-    if (!updated) throw new NotFoundException("Scheduled block not found");
-    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
-    return updated;
-  }
-
   private async summarizeConflicts(
     rawConflicts: Array<{
       id: number;
