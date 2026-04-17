@@ -13,7 +13,6 @@ describe("scheduling tools", () => {
     getBlocksForRange: jest.fn(),
     getCurrentBlock: jest.fn(),
     createBlock: jest.fn(),
-    updateBlockStatus: jest.fn(),
     updateBlock: jest.fn(),
     shiftBlocks: jest.fn(),
     deleteBlock: jest.fn(),

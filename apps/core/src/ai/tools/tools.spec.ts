@@ -34,7 +34,8 @@ describe("createTools", () => {
     getBlocksForRange: jest.fn(),
     getCurrentBlock: jest.fn(),
     createBlock: jest.fn(),
-    updateBlockStatus: jest.fn(),
+    updateBlock: jest.fn(),
+    shiftBlocks: jest.fn(),
     deleteBlock: jest.fn(),
   } as unknown as SchedulingService;
 
@@ -45,8 +46,8 @@ describe("createTools", () => {
     mockUsersRepository,
   );
 
-  it("should create all 17 tools", () => {
-    expect(Object.keys(tools)).toHaveLength(17);
+  it("should create all 18 tools", () => {
+    expect(Object.keys(tools)).toHaveLength(18);
   });
 
   it("should include the time tool", () => {
@@ -75,6 +76,7 @@ describe("createTools", () => {
     expect(tools["get-current-block"]).toBeDefined();
     expect(tools["create-block"]).toBeDefined();
     expect(tools["update-block"]).toBeDefined();
+    expect(tools["shift-blocks"]).toBeDefined();
     expect(tools["delete-block"]).toBeDefined();
   });
 });
