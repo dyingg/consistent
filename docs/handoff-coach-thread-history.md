@@ -1,10 +1,32 @@
 # Handoff: Coach thread history not loading on page reload
 
-**Status:** open
+**Status:** resolved (2026-04-18)
 **Date opened:** 2026-04-17
 **Branch where issue was observed:** `feat/ai-assistant-coach`
 **Related PR:** [#1](https://github.com/dyingg/consistent/pull/1)
 **Severity:** medium — nice-to-have for MVP, but user-visible confusion
+
+## Resolution (2026-04-18)
+
+Hypothesis #1 from below was correct: `useChatRuntime` wraps the runtime in
+`useRemoteThreadListRuntime`, and `useExternalHistory` short-circuits when the
+thread has no `remoteId` — which is always the case for us on reload, since
+`remoteId` is only set when the user sends their first message (via the
+`InMemoryThreadListAdapter.initialize` call). The effect also sets
+`loadedRef.current = true` before that early-return, so it never retries.
+
+**Fix:** bypass the history adapter entirely. Fetch prior messages from
+`GET /v1/ai/threads/:threadId/messages` directly in `<Coach>`, then mount a
+child runtime component with those messages passed as the initial `messages`
+prop on `useChatRuntime`. The server now shapes each message as an
+AI SDK v6 `UIMessage` (`id`, `role`, `parts: [{ type: "text", text }]`) by
+flattening Mastra's `MastraMessageContentV2.parts`. `history-adapter.ts` was
+dead code and has been removed.
+
+Files touched:
+- `apps/core/src/ai/ai.controller.ts` — flatten text parts into UIMessage shape
+- `apps/web/src/components/coach/coach.tsx` — fetch history, then render runtime
+- `apps/web/src/components/coach/history-adapter.ts` — deleted
 
 ## What's working
 
