@@ -1,0 +1,62 @@
+import { Module } from "@nestjs/common";
+import { GoalsModule } from "../goals/goals.module";
+import { TasksModule } from "../tasks/tasks.module";
+import { SchedulingModule } from "../scheduling/scheduling.module";
+import { GoalsService } from "../goals/goals.service";
+import { TasksService } from "../tasks/tasks.service";
+import { SchedulingService } from "../scheduling/scheduling.service";
+import { AuthModule } from "../auth/auth.module";
+import { env } from "../env";
+import { createTools } from "./tools";
+import { createMemory, type CreatedMemory } from "./memory";
+import { createCoachAgent } from "./agent";
+import { createMastra } from "./mastra";
+import { AiController, MEMORY } from "./ai.controller";
+import { MastraBootstrap, MASTRA, STORE } from "./ai.bootstrap";
+
+export const TOOLS = Symbol("TOOLS");
+export const AGENT = Symbol("AGENT");
+const MEMORY_BUNDLE = Symbol("MEMORY_BUNDLE");
+
+@Module({
+  imports: [AuthModule, GoalsModule, TasksModule, SchedulingModule],
+  controllers: [AiController],
+  providers: [
+    {
+      provide: TOOLS,
+      inject: [GoalsService, TasksService, SchedulingService],
+      useFactory: (
+        goals: GoalsService,
+        tasks: TasksService,
+        scheduling: SchedulingService,
+      ) => createTools(goals, tasks, scheduling),
+    },
+    {
+      provide: MEMORY_BUNDLE,
+      useFactory: (): CreatedMemory => createMemory(env.DATABASE_URL),
+    },
+    {
+      provide: STORE,
+      inject: [MEMORY_BUNDLE],
+      useFactory: (bundle: CreatedMemory) => bundle.store,
+    },
+    {
+      provide: MEMORY,
+      inject: [MEMORY_BUNDLE],
+      useFactory: (bundle: CreatedMemory) => bundle.memory,
+    },
+    {
+      provide: AGENT,
+      inject: [TOOLS, MEMORY],
+      useFactory: (tools: Record<string, unknown>, memory: any) =>
+        createCoachAgent({ tools, memory, model: env.AI_MODEL }),
+    },
+    {
+      provide: MASTRA,
+      inject: [AGENT, STORE],
+      useFactory: (agent: any, store: any) => createMastra(agent, store),
+    },
+    MastraBootstrap,
+  ],
+})
+export class AiModule {}
