@@ -11,6 +11,14 @@ import { Thread } from "./thread";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+function getBrowserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 type HistoryMessage = {
   id: string;
   role: "user" | "assistant" | "system";
@@ -139,6 +147,10 @@ function CoachRuntime({
             ...(body ?? {}),
             messages,
             memory: { resource: userId, thread: threadId },
+            requestContext: {
+              userTimezone: getBrowserTimezone(),
+              clientTime: new Date().toISOString(),
+            },
           },
         }),
       }),

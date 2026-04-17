@@ -2,9 +2,11 @@ import { Module } from "@nestjs/common";
 import { GoalsModule } from "../goals/goals.module";
 import { TasksModule } from "../tasks/tasks.module";
 import { SchedulingModule } from "../scheduling/scheduling.module";
+import { UsersModule } from "../users/users.module";
 import { GoalsService } from "../goals/goals.service";
 import { TasksService } from "../tasks/tasks.service";
 import { SchedulingService } from "../scheduling/scheduling.service";
+import { UsersRepository } from "../users/users.repository";
 import { AuthModule } from "../auth/auth.module";
 import { env } from "../env";
 import { createTools } from "./tools";
@@ -19,17 +21,24 @@ export const AGENT = Symbol("AGENT");
 const MEMORY_BUNDLE = Symbol("MEMORY_BUNDLE");
 
 @Module({
-  imports: [AuthModule, GoalsModule, TasksModule, SchedulingModule],
+  imports: [
+    AuthModule,
+    GoalsModule,
+    TasksModule,
+    SchedulingModule,
+    UsersModule,
+  ],
   controllers: [AiController],
   providers: [
     {
       provide: TOOLS,
-      inject: [GoalsService, TasksService, SchedulingService],
+      inject: [GoalsService, TasksService, SchedulingService, UsersRepository],
       useFactory: (
         goals: GoalsService,
         tasks: TasksService,
         scheduling: SchedulingService,
-      ) => createTools(goals, tasks, scheduling),
+        users: UsersRepository,
+      ) => createTools(goals, tasks, scheduling, users),
     },
     {
       provide: MEMORY_BUNDLE,
