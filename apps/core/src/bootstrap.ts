@@ -2,7 +2,11 @@ import { VersioningType } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "@consistent/auth";
-import express, { type Request as ExpressRequest, type Response as ExpressResponse } from "express";
+import express, {
+  type Application,
+  type Request as ExpressRequest,
+  type Response as ExpressResponse,
+} from "express";
 import { env } from "./env";
 
 /**
@@ -27,10 +31,15 @@ export function configureApp(app: NestExpressApplication): void {
   // AFTER this route in Express's middleware stack. Attach express.json()
   // directly to the route so req.body is parsed regardless of when NestJS's
   // parser registers.
-  const expressApp = app.getHttpAdapter().getInstance();
+  // NestJS's http adapter is typed against an older @types/express-serve-static-core
+  // than the one resolved here, so a direct cast fails on Response.cookie's v5
+  // signature. Bridge through unknown: the runtime object is a real express app.
+  const expressApp = app
+    .getHttpAdapter()
+    .getInstance() as unknown as Application;
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Better Auth handler is async
-  (expressApp as any).all(
+  expressApp.all(
     "/api/auth/*splat",
     express.json(),
     async (req: ExpressRequest, res: ExpressResponse) => {
