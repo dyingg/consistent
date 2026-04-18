@@ -1,7 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Test mocks legitimately use `any` for two patterns Jest+ts-jest cannot
+ * easily type without losing readability:
+ *   1. Chainable Drizzle query mocks (e.g. db.select().from().where().limit())
+ *      where each step returns the same chainable object — typing this fully
+ *      requires recursive generics that obscure the test intent.
+ *   2. mockResolvedValue(mockEntity as any) where the literal mock skips
+ *      fields like createdAt/updatedAt that the production type requires
+ *      but the assertion under test does not care about.
+ * Production code in apps/core has the rule at error and is fully clean.
+ */
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 
 jest.mock("../db", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory cannot reference outer-scope vars; require() is the documented escape
   DRIZZLE: require("../db/types").DRIZZLE,
 }));
 
@@ -51,7 +63,9 @@ describe("SchedulingService", () => {
             getBlocksForRange: jest.fn(),
             getBlocksForRangeWithDetails: jest.fn(),
             getCurrentBlock: jest.fn(),
-            updateBlockStatus: jest.fn(),
+            updateBlock: jest.fn(),
+            findOverlapping: jest.fn(),
+            shiftBlocks: jest.fn(),
             deleteBlock: jest.fn(),
           },
         },
@@ -81,6 +95,7 @@ describe("SchedulingService", () => {
     it("should create a block for an owned task", async () => {
       tasksRepo.findById.mockResolvedValue(mockTask as any);
       schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
 
       const result = await service.createBlock(userId, {
         taskId: 10,
@@ -89,7 +104,7 @@ describe("SchedulingService", () => {
         scheduledBy: "user",
       });
 
-      expect(result).toEqual(mockBlock);
+      expect(result).toEqual({ block: mockBlock, conflicts: [] });
       expect(schedulingRepo.createBlock).toHaveBeenCalledWith(
         expect.objectContaining({
           userId,
@@ -165,6 +180,7 @@ describe("SchedulingService", () => {
     it("should pass optional scheduledBy and scheduleRunId", async () => {
       tasksRepo.findById.mockResolvedValue(mockTask as any);
       schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
 
       await service.createBlock(userId, {
         taskId: 10,
@@ -180,6 +196,31 @@ describe("SchedulingService", () => {
           scheduleRunId: 42,
         }),
       );
+    });
+
+    it("should include overlap conflicts in the response", async () => {
+      const conflicting = {
+        id: 7,
+        taskId: 11,
+        startTime: new Date("2026-04-16T09:30:00Z"),
+        endTime: new Date("2026-04-16T10:30:00Z"),
+      };
+      tasksRepo.findById.mockImplementation(async (id: number) =>
+        id === 11
+          ? ({ ...mockTask, id: 11, title: "Run" } as any)
+          : (mockTask as any),
+      );
+      schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
+
+      const result = await service.createBlock(userId, {
+        taskId: 10,
+        startTime: new Date("2026-04-16T09:00:00Z"),
+        endTime: new Date("2026-04-16T10:00:00Z"),
+      });
+
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0].blockId).toBe(7);
     });
   });
 
@@ -237,84 +278,201 @@ describe("SchedulingService", () => {
     });
   });
 
-  // ── updateBlockStatus ───────────────────────────────────
+  // ── updateBlock ─────────────────────────────────────────
 
-  describe("updateBlockStatus", () => {
-    it("should update status of an owned block", async () => {
-      const updatedBlock = { ...mockBlock, status: "confirmed" as const };
+  describe("updateBlock", () => {
+    const updated = { ...mockBlock, endTime: new Date("2026-04-16T11:00:00Z") };
+
+    it("should patch times and return { block, conflicts }", async () => {
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue(updatedBlock as any);
+      schedulingRepo.updateBlock.mockResolvedValue(updated as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
 
-      const result = await service.updateBlockStatus(
-        userId,
-        1,
-        "confirmed",
-      );
+      const result = await service.updateBlock(userId, 1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
 
-      expect(result).toEqual(updatedBlock);
-      expect(schedulingRepo.updateBlockStatus).toHaveBeenCalledWith(
-        1,
-        "confirmed",
-      );
+      expect(result).toEqual({ block: updated, conflicts: [] });
+      expect(schedulingRepo.updateBlock).toHaveBeenCalledWith(1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
     });
 
-    it("should allow updating to completed status", async () => {
+    it("should verify new task ownership when taskId changes", async () => {
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue({
-        ...mockBlock,
-        status: "completed",
-      } as any);
+      tasksRepo.findById.mockResolvedValue({ ...mockTask, id: 99 } as any);
+      schedulingRepo.updateBlock.mockResolvedValue({ ...updated, taskId: 99 } as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
 
-      const result = await service.updateBlockStatus(
-        userId,
-        1,
-        "completed",
-      );
+      await service.updateBlock(userId, 1, { taskId: 99 });
 
-      expect(result.status).toBe("completed");
+      expect(tasksRepo.findById).toHaveBeenCalledWith(99);
     });
 
-    it("should allow updating to missed status", async () => {
+    it("should throw NotFoundException when new task not owned", async () => {
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue({
-        ...mockBlock,
-        status: "missed",
-      } as any);
-
-      const result = await service.updateBlockStatus(userId, 1, "missed");
-
-      expect(result.status).toBe("missed");
-    });
-
-    it("should allow updating to moved status", async () => {
-      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlockStatus.mockResolvedValue({
-        ...mockBlock,
-        status: "moved",
-      } as any);
-
-      const result = await service.updateBlockStatus(userId, 1, "moved");
-
-      expect(result.status).toBe("moved");
-    });
-
-    it("should throw NotFoundException when block does not exist", async () => {
-      schedulingRepo.findBlockById.mockResolvedValue(null);
+      tasksRepo.findById.mockResolvedValue({ ...mockTask, userId: otherUserId } as any);
 
       await expect(
-        service.updateBlockStatus(userId, 999, "confirmed"),
+        service.updateBlock(userId, 1, { taskId: 99 }),
       ).rejects.toThrow(NotFoundException);
-      await expect(
-        service.updateBlockStatus(userId, 999, "confirmed"),
-      ).rejects.toThrow("Scheduled block not found");
     });
 
-    it("should throw NotFoundException when block belongs to another user", async () => {
+    it("should throw BadRequestException when effective start >= end", async () => {
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
 
       await expect(
-        service.updateBlockStatus(otherUserId, 1, "confirmed"),
+        service.updateBlock(userId, 1, {
+          endTime: new Date("2026-04-16T08:00:00Z"),
+        }),
+      ).rejects.toThrow("Start time must be before end time");
+    });
+
+    it("should throw NotFoundException when block not owned", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+
+      await expect(
+        service.updateBlock(otherUserId, 1, { status: "completed" }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should exclude the block itself from overlap check", async () => {
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+      schedulingRepo.updateBlock.mockResolvedValue(updated as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      await service.updateBlock(userId, 1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+
+      expect(schedulingRepo.findOverlapping).toHaveBeenCalledWith(
+        userId,
+        mockBlock.startTime,
+        new Date("2026-04-16T11:00:00Z"),
+        [1],
+      );
+    });
+
+    it("should return conflict summaries when overlap found", async () => {
+      const conflicting = {
+        id: 7,
+        taskId: 11,
+        startTime: new Date("2026-04-16T10:30:00Z"),
+        endTime: new Date("2026-04-16T11:30:00Z"),
+      };
+      schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
+      schedulingRepo.updateBlock.mockResolvedValue(updated as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
+      tasksRepo.findById.mockResolvedValue({ ...mockTask, id: 11, title: "Run" } as any);
+
+      const result = await service.updateBlock(userId, 1, {
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+
+      expect(result.conflicts).toEqual([
+        {
+          blockId: 7,
+          taskId: 11,
+          taskTitle: "Run",
+          startTime: conflicting.startTime.toISOString(),
+          endTime: conflicting.endTime.toISOString(),
+        },
+      ]);
+    });
+  });
+
+  // ── shiftBlocks ─────────────────────────────────────────
+
+  describe("shiftBlocks", () => {
+    const block1 = { ...mockBlock, id: 1 };
+    const block2 = {
+      ...mockBlock,
+      id: 2,
+      startTime: new Date("2026-04-16T11:00:00Z"),
+      endTime: new Date("2026-04-16T12:00:00Z"),
+    };
+
+    it("should shift explicit blockIds after ownership check", async () => {
+      schedulingRepo.findBlockById.mockImplementation(async (id: number) =>
+        id === 1 ? (block1 as any) : (block2 as any),
+      );
+      const shifted = [
+        { ...block1, startTime: new Date("2026-04-16T09:30:00Z"), endTime: new Date("2026-04-16T10:30:00Z") },
+        { ...block2, startTime: new Date("2026-04-16T11:30:00Z"), endTime: new Date("2026-04-16T12:30:00Z") },
+      ];
+      schedulingRepo.shiftBlocks.mockResolvedValue(shifted as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      const result = await service.shiftBlocks(userId, {
+        blockIds: [1, 2],
+        deltaMinutes: 30,
+      });
+
+      expect(schedulingRepo.shiftBlocks).toHaveBeenCalledWith([1, 2], 30);
+      expect(result.blocks).toEqual(shifted);
+      expect(result.conflicts).toEqual([]);
+    });
+
+    it("should resolve afterTime selector by querying blocks >= afterTime", async () => {
+      schedulingRepo.getBlocksForRange.mockResolvedValue([block1, block2] as any);
+      schedulingRepo.shiftBlocks.mockResolvedValue([block1, block2] as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      await service.shiftBlocks(userId, {
+        afterTime: new Date("2026-04-16T08:00:00Z"),
+        deltaMinutes: 15,
+      });
+
+      expect(schedulingRepo.shiftBlocks).toHaveBeenCalledWith([1, 2], 15);
+    });
+
+    it("should reject when both selectors provided", async () => {
+      await expect(
+        service.shiftBlocks(userId, {
+          blockIds: [1],
+          afterTime: new Date(),
+          deltaMinutes: 10,
+        } as any),
+      ).rejects.toThrow("Provide exactly one of blockIds or afterTime");
+    });
+
+    it("should reject when neither selector provided", async () => {
+      await expect(
+        service.shiftBlocks(userId, { deltaMinutes: 10 } as any),
+      ).rejects.toThrow("Provide exactly one of blockIds or afterTime");
+    });
+
+    it("should reject deltaMinutes of 0", async () => {
+      await expect(
+        service.shiftBlocks(userId, { blockIds: [1], deltaMinutes: 0 }),
+      ).rejects.toThrow("deltaMinutes must be non-zero");
+    });
+
+    it("should throw when a blockId is not owned", async () => {
+      schedulingRepo.findBlockById.mockImplementation(async (id: number) =>
+        id === 1 ? (block1 as any) : null,
+      );
+
+      await expect(
+        service.shiftBlocks(userId, { blockIds: [1, 999], deltaMinutes: 30 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should exclude the shifted cohort from conflict detection", async () => {
+      schedulingRepo.findBlockById.mockImplementation(async (id: number) =>
+        id === 1 ? (block1 as any) : (block2 as any),
+      );
+      schedulingRepo.shiftBlocks.mockResolvedValue([block1, block2] as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      await service.shiftBlocks(userId, { blockIds: [1, 2], deltaMinutes: 30 });
+
+      expect(schedulingRepo.findOverlapping).toHaveBeenCalledWith(
+        userId,
+        expect.any(Date),
+        expect.any(Date),
+        [1, 2],
+      );
     });
   });
 

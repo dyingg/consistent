@@ -5,6 +5,10 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { tasks, taskDependencies } from "@consistent/db/schema";
+
+type TaskInsert = typeof tasks.$inferInsert;
+type DependencyType = (typeof taskDependencies.$inferInsert)["dependencyType"];
+
 import { EVENTS } from "@consistent/realtime";
 import { TasksRepository } from "./tasks.repository";
 import { DependenciesRepository } from "./dependencies.repository";
@@ -207,7 +211,7 @@ export class TasksService {
       data.title = title;
     }
 
-    const updateData: Record<string, unknown> = { ...data };
+    const updateData: Partial<TaskInsert> = { ...data };
 
     if (data.status === "completed") {
       updateData.completedAt = new Date();
@@ -215,7 +219,7 @@ export class TasksService {
       updateData.completedAt = null;
     }
 
-    const updated = await this.tasksRepo.update(taskId, updateData as any);
+    const updated = await this.tasksRepo.update(taskId, updateData);
     this.realtime.broadcastToUser(userId, EVENTS.TASK_UPDATED, { taskId, goalId: task.goalId });
     this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId: task.goalId });
     return updated;
@@ -255,7 +259,7 @@ export class TasksService {
     return this.depsRepo.create({
       taskId,
       dependsOnId,
-      dependencyType: (type as any) ?? "finish_to_start",
+      dependencyType: (type as DependencyType) ?? "finish_to_start",
       lagMinutes: lagMinutes ?? 0,
     });
   }

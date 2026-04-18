@@ -1,7 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Test mocks legitimately use `any` for two patterns Jest+ts-jest cannot
+ * easily type without losing readability:
+ *   1. Chainable Drizzle query mocks (e.g. db.select().from().where().limit())
+ *      where each step returns the same chainable object — typing this fully
+ *      requires recursive generics that obscure the test intent.
+ *   2. mockResolvedValue(mockEntity as any) where the literal mock skips
+ *      fields like createdAt/updatedAt that the production type requires
+ *      but the assertion under test does not care about.
+ * Production code in apps/core has the rule at error and is fully clean.
+ */
 import { Test, TestingModule } from "@nestjs/testing";
 import { DRIZZLE } from "../db/types";
 
 jest.mock("../db", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory cannot reference outer-scope vars; require() is the documented escape
   DRIZZLE: require("../db/types").DRIZZLE,
 }));
 
@@ -123,28 +135,105 @@ describe("SchedulingRepository", () => {
     });
   });
 
-  describe("updateBlockStatus", () => {
-    it("should update block status and return it", async () => {
-      const updatedBlock = { ...mockBlock, status: "completed" };
+  describe("updateBlock", () => {
+    it("should update partial columns and return row", async () => {
+      const updatedBlock = {
+        ...mockBlock,
+        startTime: new Date("2026-04-16T09:30:00Z"),
+      };
       const chain = chainMock([updatedBlock], ["set", "where", "returning"]);
       db.update.mockReturnValue(chain);
 
-      const result = await repo.updateBlockStatus(1, "completed");
+      const result = await repo.updateBlock(1, {
+        startTime: new Date("2026-04-16T09:30:00Z"),
+      });
 
       expect(result).toEqual(updatedBlock);
-      expect(db.update).toHaveBeenCalled();
-      expect(chain.set).toHaveBeenCalled();
-      expect(chain.where).toHaveBeenCalled();
-      expect(chain.returning).toHaveBeenCalled();
+      expect(chain.set).toHaveBeenCalledWith({
+        startTime: new Date("2026-04-16T09:30:00Z"),
+      });
     });
 
-    it("should return null when block not found", async () => {
+    it("should forward multiple fields to set()", async () => {
+      const chain = chainMock([mockBlock], ["set", "where", "returning"]);
+      db.update.mockReturnValue(chain);
+
+      await repo.updateBlock(1, {
+        status: "completed",
+        taskId: 42,
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+
+      expect(chain.set).toHaveBeenCalledWith({
+        status: "completed",
+        taskId: 42,
+        endTime: new Date("2026-04-16T11:00:00Z"),
+      });
+    });
+
+    it("should return null when no row updated", async () => {
       const chain = chainMock([], ["set", "where", "returning"]);
       db.update.mockReturnValue(chain);
 
-      const result = await repo.updateBlockStatus(999, "missed");
+      const result = await repo.updateBlock(999, { status: "completed" });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("findOverlapping", () => {
+    it("should run a select filtered by userId and time range", async () => {
+      const blocks = [mockBlock];
+      const chain = chainMock(blocks, ["from", "where"]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.findOverlapping(
+        "user-1",
+        new Date("2026-04-16T09:00:00Z"),
+        new Date("2026-04-16T10:00:00Z"),
+      );
+
+      expect(result).toEqual(blocks);
+      expect(db.select).toHaveBeenCalled();
+      expect(chain.where).toHaveBeenCalled();
+    });
+
+    it("should accept excludeIds and still return rows", async () => {
+      const chain = chainMock([], ["from", "where"]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.findOverlapping(
+        "user-1",
+        new Date("2026-04-16T09:00:00Z"),
+        new Date("2026-04-16T10:00:00Z"),
+        [1, 2],
+      );
+
+      expect(result).toEqual([]);
+      expect(chain.where).toHaveBeenCalled();
+    });
+  });
+
+  describe("shiftBlocks", () => {
+    it("should update each block atomically and return the rows", async () => {
+      const tx = {
+        update: jest.fn(),
+      };
+      const chain = chainMock([mockBlock], ["set", "where", "returning"]);
+      tx.update.mockReturnValue(chain);
+      db.transaction = jest.fn(async (cb: any) => cb(tx));
+
+      const result = await repo.shiftBlocks([1, 2], 30);
+
+      expect(db.transaction).toHaveBeenCalled();
+      expect(tx.update).toHaveBeenCalledTimes(2);
+      expect(result).toHaveLength(2);
+    });
+
+    it("should return empty array when given no ids", async () => {
+      db.transaction = jest.fn(async (cb: any) => cb({ update: jest.fn() }));
+      const result = await repo.shiftBlocks([], 30);
+      expect(result).toEqual([]);
     });
   });
 

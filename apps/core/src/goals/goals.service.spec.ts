@@ -1,7 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Test mocks legitimately use `any` for two patterns Jest+ts-jest cannot
+ * easily type without losing readability:
+ *   1. Chainable Drizzle query mocks (e.g. db.select().from().where().limit())
+ *      where each step returns the same chainable object — typing this fully
+ *      requires recursive generics that obscure the test intent.
+ *   2. mockResolvedValue(mockEntity as any) where the literal mock skips
+ *      fields like createdAt/updatedAt that the production type requires
+ *      but the assertion under test does not care about.
+ * Production code in apps/core has the rule at error and is fully clean.
+ */
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 
 jest.mock("../db", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory cannot reference outer-scope vars; require() is the documented escape
   DRIZZLE: require("../db/types").DRIZZLE,
 }));
 

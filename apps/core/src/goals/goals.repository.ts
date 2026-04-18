@@ -3,6 +3,8 @@ import { eq, and } from "drizzle-orm";
 import { goals } from "@consistent/db/schema";
 import { DRIZZLE, type DrizzleDB } from "../db";
 
+type GoalStatus = (typeof goals.$inferSelect)["status"];
+
 @Injectable()
 export class GoalsRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
@@ -10,7 +12,7 @@ export class GoalsRepository {
   async findByUserId(userId: string, status?: string) {
     const conditions = [eq(goals.userId, userId)];
     if (status) {
-      conditions.push(eq(goals.status, status as any));
+      conditions.push(eq(goals.status, status as GoalStatus));
     }
     return this.db
       .select()
@@ -24,7 +26,7 @@ export class GoalsRepository {
       .from(goals)
       .where(eq(goals.id, id))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async create(data: typeof goals.$inferInsert) {
@@ -38,7 +40,7 @@ export class GoalsRepository {
       .set(data)
       .where(eq(goals.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async delete(id: number) {
@@ -46,7 +48,7 @@ export class GoalsRepository {
       .delete(goals)
       .where(eq(goals.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   /**

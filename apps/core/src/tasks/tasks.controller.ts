@@ -9,6 +9,7 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
+import type { AuthUser } from "@consistent/auth";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUser } from "../auth/auth.decorator";
 import { TasksService } from "./tasks.service";
@@ -25,7 +26,7 @@ export class TasksController {
 
   @Post("goals/:goalId/tasks")
   create(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("goalId", ParseIntPipe) goalId: number,
     @Body() body: CreateTaskInput,
   ) {
@@ -34,7 +35,7 @@ export class TasksController {
 
   @Post("goals/:goalId/tasks/bulk")
   bulkCreate(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("goalId", ParseIntPipe) goalId: number,
     @Body() body: BulkCreateInput,
   ) {
@@ -43,7 +44,7 @@ export class TasksController {
 
   @Get("goals/:goalId/tasks")
   findAllForGoal(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("goalId", ParseIntPipe) goalId: number,
   ) {
     return this.tasksService.findAllForGoal(user.id, goalId);
@@ -51,7 +52,7 @@ export class TasksController {
 
   @Get("goals/:goalId/dag")
   getGoalDag(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("goalId", ParseIntPipe) goalId: number,
   ) {
     return this.tasksService.getGoalDag(user.id, goalId);
@@ -59,18 +60,18 @@ export class TasksController {
 
   // Static route before parameterized :id route
   @Get("tasks/ready")
-  findReady(@CurrentUser() user: any) {
+  findReady(@CurrentUser() user: AuthUser) {
     return this.tasksService.findReadyForUser(user.id);
   }
 
   @Get("tasks/:id")
-  findOne(@CurrentUser() user: any, @Param("id", ParseIntPipe) id: number) {
+  findOne(@CurrentUser() user: AuthUser, @Param("id", ParseIntPipe) id: number) {
     return this.tasksService.findById(user.id, id);
   }
 
   @Patch("tasks/:id")
   update(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
     @Body() body: UpdateTaskInput,
   ) {
@@ -78,13 +79,13 @@ export class TasksController {
   }
 
   @Delete("tasks/:id")
-  remove(@CurrentUser() user: any, @Param("id", ParseIntPipe) id: number) {
+  remove(@CurrentUser() user: AuthUser, @Param("id", ParseIntPipe) id: number) {
     return this.tasksService.delete(user.id, id);
   }
 
   @Post("tasks/:id/dependencies")
   addDependency(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
     @Body() body: { dependsOnId: number; type?: string; lagMinutes?: number },
   ) {
@@ -99,7 +100,7 @@ export class TasksController {
 
   @Delete("tasks/:id/dependencies/:dependsOnId")
   removeDependency(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
     @Param("dependsOnId", ParseIntPipe) dependsOnId: number,
   ) {

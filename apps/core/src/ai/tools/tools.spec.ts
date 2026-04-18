@@ -1,7 +1,26 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Test mocks legitimately use `any` for two patterns Jest+ts-jest cannot
+ * easily type without losing readability:
+ *   1. Chainable Drizzle query mocks (e.g. db.select().from().where().limit())
+ *      where each step returns the same chainable object — typing this fully
+ *      requires recursive generics that obscure the test intent.
+ *   2. mockResolvedValue(mockEntity as any) where the literal mock skips
+ *      fields like createdAt/updatedAt that the production type requires
+ *      but the assertion under test does not care about.
+ * Production code in apps/core has the rule at error and is fully clean.
+ */
 import { GoalsService } from "../../goals/goals.service";
 import { TasksService } from "../../tasks/tasks.service";
 import { SchedulingService } from "../../scheduling/scheduling.service";
+import type { UsersRepository } from "../../users/users.repository";
 import { createTools } from "./index";
+
+const mockUsersRepository = {
+  findById: jest.fn().mockResolvedValue({ id: "user-123", timezone: "UTC" }),
+  findByEmail: jest.fn(),
+  updatePreferences: jest.fn(),
+  updateTimezone: jest.fn(),
+} as unknown as UsersRepository;
 
 describe("createTools", () => {
   const mockGoalsService = {
@@ -26,14 +45,24 @@ describe("createTools", () => {
     getBlocksForRange: jest.fn(),
     getCurrentBlock: jest.fn(),
     createBlock: jest.fn(),
-    updateBlockStatus: jest.fn(),
+    updateBlock: jest.fn(),
+    shiftBlocks: jest.fn(),
     deleteBlock: jest.fn(),
   } as unknown as SchedulingService;
 
-  const tools = createTools(mockGoalsService, mockTasksService, mockSchedulingService);
+  const tools = createTools(
+    mockGoalsService,
+    mockTasksService,
+    mockSchedulingService,
+    mockUsersRepository,
+  );
 
-  it("should create all 16 tools", () => {
-    expect(Object.keys(tools)).toHaveLength(16);
+  it("should create all 18 tools", () => {
+    expect(Object.keys(tools)).toHaveLength(18);
+  });
+
+  it("should include the time tool", () => {
+    expect(tools["get-current-time"]).toBeDefined();
   });
 
   it("should include all goal tools", () => {
@@ -58,6 +87,7 @@ describe("createTools", () => {
     expect(tools["get-current-block"]).toBeDefined();
     expect(tools["create-block"]).toBeDefined();
     expect(tools["update-block"]).toBeDefined();
+    expect(tools["shift-blocks"]).toBeDefined();
     expect(tools["delete-block"]).toBeDefined();
   });
 });
@@ -75,7 +105,15 @@ describe("goal tool execution", () => {
   const mockTasksService = {} as unknown as TasksService;
   const mockSchedulingService = {} as unknown as SchedulingService;
 
-  const tools = createTools(mockGoalsService, mockTasksService, mockSchedulingService);
+  const tools = createTools(
+    mockGoalsService,
+    mockTasksService,
+    mockSchedulingService,
+    mockUsersRepository,
+  ) as unknown as Record<
+    string,
+    { execute: (input: unknown, context: unknown) => Promise<unknown> }
+  >;
 
   // RequestContext uses a Map internally; mock the .get() interface
   const mockRequestContext = {
@@ -94,19 +132,19 @@ describe("goal tool execution", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("get-goals should call goalsService.findAll with userId", async () => {
-    const result = await tools["get-goals"].execute({ status: "active" }, mockContext);
+    const result = await tools["get-goals"]!.execute({ status: "active" }, mockContext);
     expect(mockGoalsService.findAll).toHaveBeenCalledWith("user-123", "active");
     expect(result).toEqual({ goals: [{ id: 1, title: "Test Goal", progress: 50 }] });
   });
 
   it("create-goal should call goalsService.create with userId and data", async () => {
     const input = { title: "New Goal", description: "A goal" };
-    await tools["create-goal"].execute(input, mockContext);
+    await tools["create-goal"]!.execute(input, mockContext);
     expect(mockGoalsService.create).toHaveBeenCalledWith("user-123", input);
   });
 
   it("delete-goal should call goalsService.delete with userId and goalId", async () => {
-    await tools["delete-goal"].execute({ goalId: 1 }, mockContext);
+    await tools["delete-goal"]!.execute({ goalId: 1 }, mockContext);
     expect(mockGoalsService.delete).toHaveBeenCalledWith("user-123", 1);
   });
 });

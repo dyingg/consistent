@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq, and, gte, lte, desc, asc } from "drizzle-orm";
+import { eq, and, gte, lte, lt, gt, desc, asc, notInArray, sql } from "drizzle-orm";
 import {
   scheduleRuns,
   scheduledBlocks,
@@ -38,16 +38,60 @@ export class SchedulingRepository {
       );
   }
 
-  async updateBlockStatus(
+  async updateBlock(
     id: number,
-    status: "planned" | "confirmed" | "completed" | "missed" | "moved",
+    patch: Partial<
+      Pick<
+        typeof scheduledBlocks.$inferInsert,
+        "status" | "startTime" | "endTime" | "taskId"
+      >
+    >,
   ) {
     const rows = await this.db
       .update(scheduledBlocks)
-      .set({ status })
+      .set(patch)
       .where(eq(scheduledBlocks.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
+  }
+
+  async shiftBlocks(ids: number[], deltaMinutes: number) {
+    if (ids.length === 0) return [];
+    return this.db.transaction(async (tx) => {
+      const rows: Array<typeof scheduledBlocks.$inferSelect> = [];
+      for (const id of ids) {
+        const updated = await tx
+          .update(scheduledBlocks)
+          .set({
+            startTime: sql`${scheduledBlocks.startTime} + make_interval(mins => ${deltaMinutes})`,
+            endTime: sql`${scheduledBlocks.endTime} + make_interval(mins => ${deltaMinutes})`,
+          })
+          .where(eq(scheduledBlocks.id, id))
+          .returning();
+        if (updated.at(0)) rows.push(updated[0]!);
+      }
+      return rows;
+    });
+  }
+
+  async findOverlapping(
+    userId: string,
+    start: Date,
+    end: Date,
+    excludeIds: number[] = [],
+  ) {
+    const conditions = [
+      eq(scheduledBlocks.userId, userId),
+      lt(scheduledBlocks.startTime, end),
+      gt(scheduledBlocks.endTime, start),
+    ];
+    if (excludeIds.length > 0) {
+      conditions.push(notInArray(scheduledBlocks.id, excludeIds));
+    }
+    return this.db
+      .select()
+      .from(scheduledBlocks)
+      .where(and(...conditions));
   }
 
   async findBlockById(id: number) {
@@ -56,7 +100,7 @@ export class SchedulingRepository {
       .from(scheduledBlocks)
       .where(eq(scheduledBlocks.id, id))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async deleteBlock(id: number) {
@@ -64,7 +108,7 @@ export class SchedulingRepository {
       .delete(scheduledBlocks)
       .where(eq(scheduledBlocks.id, id))
       .returning();
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 
   async getBlocksForRangeWithDetails(
@@ -141,6 +185,6 @@ export class SchedulingRepository {
       )
       .orderBy(desc(scheduledBlocks.startTime))
       .limit(1);
-    return rows[0] ?? null;
+    return rows.at(0) ?? null;
   }
 }

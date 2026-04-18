@@ -1,0 +1,25 @@
+{
+  "rootDir": ".",
+  "testRegex": ".*\\.integration\\.test\\.ts$",
+  "testEnvironment": "node",
+  "transform": {
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "module": "commonjs",
+          "moduleResolution": "node",
+          "resolvePackageJsonExports": false,
+          "esModuleInterop": true,
+          "target": "ES2023",
+          "skipLibCheck": true,
+          "strict": true,
+          "isolatedModules": true,
+          "lib": ["ES2023", "DOM"]
+        }
+      }
+    ]
+  },
+  "testTimeout": 60000,
+  "maxWorkers": 1
+}

@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import type { AuthUser } from "@consistent/auth";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUser } from "../auth/auth.decorator";
 import { SchedulingService } from "./scheduling.service";
@@ -22,13 +23,13 @@ export class SchedulingController {
   constructor(private readonly schedulingService: SchedulingService) {}
 
   @Post("schedule/blocks")
-  createBlock(@CurrentUser() user: any, @Body() body: CreateBlockInput) {
+  createBlock(@CurrentUser() user: AuthUser, @Body() body: CreateBlockInput) {
     return this.schedulingService.createBlock(user.id, body);
   }
 
   @Get("schedule/blocks")
   getBlocks(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("start") start: string,
     @Query("end") end: string,
   ) {
@@ -50,25 +51,79 @@ export class SchedulingController {
   }
 
   @Get("schedule/now")
-  getCurrentBlock(@CurrentUser() user: any) {
+  getCurrentBlock(@CurrentUser() user: AuthUser) {
     return this.schedulingService.getCurrentBlock(user.id);
   }
 
   @Patch("schedule/blocks/:id")
-  updateStatus(
-    @CurrentUser() user: any,
+  updateBlock(
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
     @Body()
     body: {
-      status: "planned" | "confirmed" | "completed" | "missed" | "moved";
+      status?: "planned" | "confirmed" | "completed" | "missed" | "moved";
+      startTime?: string;
+      endTime?: string;
+      taskId?: number;
     },
   ) {
-    return this.schedulingService.updateBlockStatus(user.id, id, body.status);
+    const patch: Parameters<SchedulingService["updateBlock"]>[2] = {};
+    if (body.status !== undefined) patch.status = body.status;
+    if (body.taskId !== undefined) patch.taskId = body.taskId;
+    if (body.startTime !== undefined) {
+      const d = new Date(body.startTime);
+      if (isNaN(d.getTime())) {
+        throw new BadRequestException("Invalid startTime format");
+      }
+      patch.startTime = d;
+    }
+    if (body.endTime !== undefined) {
+      const d = new Date(body.endTime);
+      if (isNaN(d.getTime())) {
+        throw new BadRequestException("Invalid endTime format");
+      }
+      patch.endTime = d;
+    }
+    return this.schedulingService.updateBlock(user.id, id, patch);
+  }
+
+  @Post("schedule/blocks/shift")
+  shift(
+    @CurrentUser() user: AuthUser,
+    @Body()
+    body: {
+      deltaMinutes: number;
+      blockIds?: number[];
+      afterTime?: string;
+    },
+  ) {
+    if (typeof body.deltaMinutes !== "number") {
+      throw new BadRequestException("deltaMinutes is required");
+    }
+    if ((body.blockIds && body.afterTime) || (!body.blockIds && !body.afterTime)) {
+      throw new BadRequestException(
+        "Provide exactly one of blockIds or afterTime",
+      );
+    }
+    if (body.blockIds) {
+      return this.schedulingService.shiftBlocks(user.id, {
+        blockIds: body.blockIds,
+        deltaMinutes: body.deltaMinutes,
+      });
+    }
+    const d = new Date(body.afterTime!);
+    if (isNaN(d.getTime())) {
+      throw new BadRequestException("Invalid afterTime format");
+    }
+    return this.schedulingService.shiftBlocks(user.id, {
+      afterTime: d,
+      deltaMinutes: body.deltaMinutes,
+    });
   }
 
   @Delete("schedule/blocks/:id")
   deleteBlock(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
   ) {
     return this.schedulingService.deleteBlock(user.id, id);
