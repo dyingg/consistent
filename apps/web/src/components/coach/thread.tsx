@@ -6,6 +6,9 @@ import {
 } from "@assistant-ui/react";
 import { Plus } from "lucide-react";
 import { MarkdownText } from "./markdown-text";
+import { Reasoning } from "./reasoning";
+import { ToolFallback } from "./tool-fallback";
+import { TypingIndicator } from "./typing-indicator";
 
 export function Thread({ onNewThread }: { onNewThread?: () => void }) {
   return (
@@ -64,8 +67,30 @@ function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex justify-start">
       <div className="max-w-[85%] text-foreground/80 text-[0.9375rem] leading-relaxed">
-        <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
+        <MessagePrimitive.Parts
+          components={{
+            Text: MarkdownText,
+            Reasoning: Reasoning,
+            tools: { Fallback: ToolFallback },
+            Empty: EmptyAssistantState,
+          }}
+        />
       </div>
     </MessagePrimitive.Root>
   );
+}
+
+function EmptyAssistantState({
+  status,
+}: {
+  status: { type: "running" | "complete" | "incomplete" | "requires-action" };
+}) {
+  // Empty renders in two cases: (1) no parts yet before first token, and
+  // (2) last part is a tool-call that completed but the model hasn't emitted
+  // text yet. Only show the typing indicator while actively running — a
+  // completed message with no trailing text shouldn't linger with dots.
+  if (status.type !== "running" && status.type !== "requires-action") {
+    return null;
+  }
+  return <TypingIndicator />;
 }
