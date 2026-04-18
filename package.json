@@ -8,6 +8,7 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "test:integration": "pnpm --filter @consistent/core test:integration",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "db:generate": "turbo db:generate",
