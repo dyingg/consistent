@@ -84,7 +84,7 @@ export function createGoalTools(goalsService: GoalsService) {
   const deleteGoal = createTool({
     id: "delete-goal",
     description:
-      "Permanently delete a goal and all its tasks. Always confirm with the user before calling this.",
+      "Permanently delete a goal and all its tasks. Cascades to every task under the goal — use judgment when the target is ambiguous.",
     inputSchema: z.object({
       goalId: z.number().describe("The goal ID to delete"),
     }),

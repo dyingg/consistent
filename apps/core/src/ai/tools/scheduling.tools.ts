@@ -149,8 +149,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
 
   const deleteBlock = createTool({
     id: "delete-block",
-    description:
-      "Permanently delete a scheduled block. Confirm with the user in the previous turn before calling.",
+    description: "Permanently delete a scheduled block.",
     inputSchema: z.object({ blockId: z.number() }),
     outputSchema: z.any(),
     execute: async (input, context) =>

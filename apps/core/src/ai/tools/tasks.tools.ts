@@ -205,8 +205,7 @@ export function createTaskTools(tasksService: TasksService) {
 
   const deleteTask = createTool({
     id: "delete-task",
-    description:
-      "Permanently delete a task. Always confirm with the user in the previous turn before calling this.",
+    description: "Permanently delete a task.",
     inputSchema: z.object({ taskId: z.number() }),
     outputSchema: z.any(),
     execute: async (input, context) =>
