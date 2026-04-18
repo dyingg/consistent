@@ -38,7 +38,6 @@ export function configureApp(app: NestExpressApplication): void {
     .getHttpAdapter()
     .getInstance() as unknown as Application;
 
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Better Auth handler is async
   expressApp.all(
     "/api/auth/*splat",
     express.json(),
