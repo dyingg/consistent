@@ -6,7 +6,7 @@ import { auth } from "@consistent/auth";
 import { AppModule } from "./app.module";
 import { AuthenticatedIoAdapter } from "./realtime/realtime.adapter";
 import { env } from "./env";
-import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
+import express, { type Request as ExpressRequest, type Response as ExpressResponse } from "express";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -19,11 +19,15 @@ async function bootstrap() {
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
-  // Mount Better Auth on Express
-  const express = app.getHttpAdapter().getInstance();
+  // Mount Better Auth on Express. NestFactory.create() doesn't run app.init()
+  // (that happens during listen()), so the global body-parser registered by
+  // NestJS lands AFTER this route in Express's middleware stack. Attach
+  // express.json() directly to the route so req.body is parsed regardless of
+  // when NestJS's parser registers.
+  const expressApp = app.getHttpAdapter().getInstance();
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Better Auth handler is async
-  (express as any).all("/api/auth/*splat", async (req: ExpressRequest, res: ExpressResponse) => {
+  (expressApp as any).all("/api/auth/*splat", express.json(), async (req: ExpressRequest, res: ExpressResponse) => {
     const url = new URL(req.originalUrl, `http://${req.headers.host}`);
     const headers = fromNodeHeaders(req.headers);
     const bodyStr =
