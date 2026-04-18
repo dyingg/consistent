@@ -1,17 +1,20 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Brain, ChevronRight } from "lucide-react";
 import type { ReasoningMessagePartComponent } from "@assistant-ui/react";
 import { cn } from "@/lib/utils";
 
 const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
   const isRunning = status.type === "running";
-  const [open, setOpen] = useState(isRunning);
-
-  useEffect(() => {
-    if (isRunning) setOpen(true);
-    else setOpen(false);
-  }, [isRunning]);
+  // Default open while streaming, collapsed once done. A click flips the
+  // override for the *current* phase only, so the auto-behavior resumes
+  // when the phase changes (e.g., running → complete collapses again).
+  const [override, setOverride] = useState<{
+    running: boolean;
+    open: boolean;
+  } | null>(null);
+  const open =
+    override && override.running === isRunning ? override.open : isRunning;
 
   if (!text) return null;
 
@@ -19,7 +22,7 @@ const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
     <div className="my-1.5 rounded-md border border-border/40 bg-muted/30">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOverride({ running: isRunning, open: !open })}
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-2.5 py-1.5 text-[0.8125rem] text-foreground/70 hover:text-foreground transition-colors"
       >

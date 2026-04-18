@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   LoaderCircle,
   CircleCheck,
@@ -46,12 +46,16 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
         ? "error"
         : "complete";
 
-  // Auto-open while running, auto-close when done; user can still toggle.
-  const [open, setOpen] = useState(phase === "running");
-  useEffect(() => {
-    if (phase === "running") setOpen(true);
-    else if (phase === "complete") setOpen(false);
-  }, [phase]);
+  // Auto-open while running, auto-close when complete, stay open on error.
+  // A click sets an override keyed to the current phase so the auto-default
+  // resumes on phase transitions (running → complete collapses again).
+  const [override, setOverride] = useState<{
+    phase: typeof phase;
+    open: boolean;
+  } | null>(null);
+  const autoOpen = phase !== "complete";
+  const open =
+    override && override.phase === phase ? override.open : autoOpen;
 
   const pretty = formatToolName(toolName);
   const argsBody = hasArgs(args) ? formatValue(args) : argsText?.trim() || "";
@@ -68,14 +72,14 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOverride({ phase, open: !open })}
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-foreground/80 hover:text-foreground transition-colors"
       >
         <StatusIcon phase={phase} />
         <span className="font-medium">
           {phase === "running"
-            ? verbFor(pretty, "running")
+            ? verbFor(pretty)
             : phase === "error"
               ? `${pretty} failed`
               : pretty}
@@ -226,7 +230,7 @@ function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
-function verbFor(pretty: string, _phase: "running"): string {
+function verbFor(pretty: string): string {
   // Distinguish a few common tool verbs so streaming reads naturally.
   const lower = pretty.toLowerCase();
   if (lower.startsWith("get ") || lower.startsWith("find ")) {
