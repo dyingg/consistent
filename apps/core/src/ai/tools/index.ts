@@ -13,10 +13,12 @@ export function createTools(
   schedulingService: SchedulingService,
   usersRepository: UsersRepository,
 ) {
+  // Returning the inferred shape (vs. casting to Record<string, unknown>)
+  // keeps each tool's `execute` callable for tests and the agent factory.
   return {
     ...createGoalTools(goalsService),
     ...createTaskTools(tasksService),
     ...createSchedulingTools(schedulingService),
     ...createTimeTools(usersRepository),
-  } as Record<string, any>;
+  };
 }

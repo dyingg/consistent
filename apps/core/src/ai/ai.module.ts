@@ -1,4 +1,7 @@
 import { Module } from "@nestjs/common";
+import type { Memory } from "@mastra/memory";
+import type { Agent } from "@mastra/core/agent";
+import type { PostgresStore } from "@mastra/pg";
 import { GoalsModule } from "../goals/goals.module";
 import { TasksModule } from "../tasks/tasks.module";
 import { SchedulingModule } from "../scheduling/scheduling.module";
@@ -57,13 +60,14 @@ const MEMORY_BUNDLE = Symbol("MEMORY_BUNDLE");
     {
       provide: AGENT,
       inject: [TOOLS, MEMORY],
-      useFactory: (tools: Record<string, unknown>, memory: any) =>
+      useFactory: (tools: Record<string, unknown>, memory: Memory) =>
         createCoachAgent({ tools, memory, model: env.AI_MODEL }),
     },
     {
       provide: MASTRA,
       inject: [AGENT, STORE],
-      useFactory: (agent: any, store: any) => createMastra(agent, store),
+      useFactory: (agent: Agent, store: PostgresStore) =>
+        createMastra(agent, store),
     },
     MastraBootstrap,
   ],

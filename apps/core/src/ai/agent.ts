@@ -19,7 +19,9 @@ export function createCoachAgent(opts: CoachAgentOptions): Agent {
     id: "consistent-coach",
     name: "Consistent Coach",
     instructions: COACH_SYSTEM_PROMPT,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Agent's `model` accepts a string id at runtime; the public type wants a LanguageModel instance
     model: opts.model as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tools is a heterogeneous record by design; Mastra's ToolsInput generic isn't exported
     tools: opts.tools as any,
     memory: opts.memory,
   });

@@ -7,15 +7,18 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Memory } from "@mastra/memory";
+import type { AuthUser } from "@consistent/auth";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUser } from "../auth/auth.decorator";
 import { isOwnedBy } from "./thread-id";
 
 export const MEMORY = Symbol("MEMORY");
 
-interface AuthUser {
-  id: string;
-}
+type MemoryWithRecall = Memory & {
+  recall: (input: { threadId: string; resourceId: string }) => Promise<{
+    messages?: Array<Record<string, unknown>>;
+  }>;
+};
 
 @Controller({ version: "1", path: "ai" })
 @UseGuards(AuthGuard)
@@ -31,12 +34,14 @@ export class AiController {
       throw new ForbiddenException("thread not owned by authenticated user");
     }
 
-    const result = await (this.memory as any).recall({
+    // recall() is on Memory at runtime but isn't in @mastra/memory's exported
+    // type — narrow locally instead of casting through any.
+    const result = await (this.memory as MemoryWithRecall).recall({
       threadId,
       resourceId: user.id,
     });
 
-    const messages = (result?.messages ?? []) as Array<Record<string, any>>;
+    const messages = result?.messages ?? [];
 
     return {
       messages: messages
