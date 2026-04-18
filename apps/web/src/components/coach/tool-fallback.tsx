@@ -64,7 +64,7 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   return (
     <div
       className={cn(
-        "my-1.5 overflow-hidden rounded-md border text-[0.8125rem] transition-colors",
+        "my-1 overflow-hidden rounded-md border text-[0.8125rem] transition-colors first:mt-0 last:mb-0",
         phase === "error"
           ? "border-destructive/40 bg-destructive/5"
           : "border-border/50 bg-muted/30",

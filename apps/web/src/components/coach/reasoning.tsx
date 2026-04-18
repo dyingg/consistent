@@ -19,7 +19,7 @@ const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
   if (!text) return null;
 
   return (
-    <div className="my-1.5 rounded-md border border-border/40 bg-muted/30">
+    <div className="my-1 rounded-md border border-border/40 bg-muted/30 first:mt-0 last:mb-0">
       <button
         type="button"
         onClick={() => setOverride({ running: isRunning, open: !open })}
