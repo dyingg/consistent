@@ -41,8 +41,60 @@ describe("time tools", () => {
     expect(result.currentTime).toBe("2026-04-18T20:00:00.000Z");
     expect(result.localDate).toBe("2026-04-18");
     expect(result.weekday).toBe("Saturday");
+    expect(result.offset).toBe("-07:00");
     // the timezone matched stored value, so no update
     expect(usersRepository.updateTimezone).not.toHaveBeenCalled();
+  });
+
+  it("returns a positive offset for Asia/Tokyo", async () => {
+    usersRepository.findById.mockResolvedValue({
+      id: "user-123",
+      timezone: "Asia/Tokyo",
+    } as any);
+    const tools = createTimeTools(usersRepository);
+    const ctx = makeContext({
+      mastra__resourceId: "user-123",
+      userTimezone: "Asia/Tokyo",
+      clientTime: "2026-04-18T20:00:00.000Z",
+    });
+
+    const result = (await tools["get-current-time"].execute!({}, ctx)) as any;
+
+    expect(result.offset).toBe("+09:00");
+  });
+
+  it("returns +00:00 for UTC", async () => {
+    usersRepository.findById.mockResolvedValue({
+      id: "user-123",
+      timezone: "UTC",
+    } as any);
+    const tools = createTimeTools(usersRepository);
+    const ctx = makeContext({
+      mastra__resourceId: "user-123",
+      userTimezone: "UTC",
+      clientTime: "2026-04-18T20:00:00.000Z",
+    });
+
+    const result = (await tools["get-current-time"].execute!({}, ctx)) as any;
+
+    expect(result.offset).toBe("+00:00");
+  });
+
+  it("returns a half-hour offset for Asia/Kolkata", async () => {
+    usersRepository.findById.mockResolvedValue({
+      id: "user-123",
+      timezone: "Asia/Kolkata",
+    } as any);
+    const tools = createTimeTools(usersRepository);
+    const ctx = makeContext({
+      mastra__resourceId: "user-123",
+      userTimezone: "Asia/Kolkata",
+      clientTime: "2026-04-18T20:00:00.000Z",
+    });
+
+    const result = (await tools["get-current-time"].execute!({}, ctx)) as any;
+
+    expect(result.offset).toBe("+05:30");
   });
 
   it("falls back to stored DB timezone when context has no tz", async () => {

@@ -38,6 +38,18 @@ async function resolveTimezone(
   return { timezone: "UTC", fromBrowser: false };
 }
 
+function computeOffset(now: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    timeZoneName: "longOffset",
+  }).formatToParts(now);
+  const tzName = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+  const match = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!match) return "+00:00";
+  const [, sign, hh, mm = "00"] = match;
+  return `${sign}${hh.padStart(2, "0")}:${mm}`;
+}
+
 function formatParts(now: Date, timezone: string) {
   const iso = now.toISOString();
   const local = new Intl.DateTimeFormat("en-US", {
@@ -57,7 +69,8 @@ function formatParts(now: Date, timezone: string) {
   const localDate = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
   }).format(now);
-  return { iso, local, weekday, localDate };
+  const offset = computeOffset(now, timezone);
+  return { iso, local, weekday, localDate, offset };
 }
 
 export function createTimeTools(usersRepository: UsersRepository) {
@@ -69,6 +82,11 @@ export function createTimeTools(usersRepository: UsersRepository) {
     outputSchema: z.object({
       currentTime: z.string().describe("ISO 8601 timestamp (UTC)"),
       timezone: z.string().describe("IANA timezone identifier"),
+      offset: z
+        .string()
+        .describe(
+          "Current UTC offset for the user's timezone in ±HH:MM form (e.g. -07:00, +05:30, +00:00). Append this to wall-clock ISO strings you send to other tools.",
+        ),
       localTime: z.string().describe("Human-readable local time"),
       weekday: z.string().describe("Day of the week in the user's timezone"),
       localDate: z
@@ -102,6 +120,7 @@ export function createTimeTools(usersRepository: UsersRepository) {
       return {
         currentTime: parts.iso,
         timezone,
+        offset: parts.offset,
         localTime: parts.local,
         weekday: parts.weekday,
         localDate: parts.localDate,
