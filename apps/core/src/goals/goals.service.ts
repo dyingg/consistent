@@ -3,9 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import type { goals } from "@consistent/db/schema";
 import { GoalsRepository } from "./goals.repository";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EVENTS } from "@consistent/realtime";
+
+type GoalInsert = typeof goals.$inferInsert;
 
 export interface CreateGoalInput {
   title: string;
@@ -73,7 +76,7 @@ export class GoalsService {
       data.title = title;
     }
 
-    const updateData: Record<string, unknown> = { ...data };
+    const updateData: Partial<GoalInsert> = { ...data };
 
     if (data.status === "completed") {
       updateData.completedAt = new Date();
@@ -81,7 +84,7 @@ export class GoalsService {
       updateData.completedAt = null;
     }
 
-    const updated = await this.goalsRepo.update(goalId, updateData as any);
+    const updated = await this.goalsRepo.update(goalId, updateData);
     this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId });
     return updated;
   }
