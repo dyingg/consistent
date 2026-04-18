@@ -13,25 +13,25 @@ Working email + password auth via Better Auth. Domain data model includes goals,
 
 ## Tech Stack
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| Package manager | pnpm | 10.33.0 |
-| Build orchestration | Turborepo | 2.9.6 |
-| Frontend | Next.js (App Router, Turbopack) | 16.2.3 |
-| UI framework | React | 19.2.4 |
-| Styling | Tailwind CSS v4 + shadcn/ui v4 | 4.2.2 |
-| Backend | NestJS + Express adapter | 11.1.19 |
-| Backend compiler | SWC (via NestJS CLI) | — |
-| Database | PostgreSQL 16 via Drizzle ORM | 0.45.2 |
-| Auth | Better Auth | 1.6.3 |
-| API contracts | ts-rest + Zod | 3.52.1 / 3.25.76 |
-| Realtime | Socket.IO + Postgres LISTEN/NOTIFY + Redis pub/sub | 4.8.3 |
-| Env validation | @t3-oss/env | 0.13.11 |
-| Schema validation | drizzle-zod + Zod | 0.8.3 / 3.25.76 |
-| Testing | Playwright (e2e), Jest + ts-jest (unit) | 1.59.1 / 29.x |
-| Formatting | Biome | 2.4.12 |
-| TypeScript | | 5.7.3 |
-| Node.js | | 24+ |
+| Layer               | Technology                                         | Version          |
+| ------------------- | -------------------------------------------------- | ---------------- |
+| Package manager     | pnpm                                               | 10.33.0          |
+| Build orchestration | Turborepo                                          | 2.9.6            |
+| Frontend            | Next.js (App Router, Turbopack)                    | 16.2.3           |
+| UI framework        | React                                              | 19.2.4           |
+| Styling             | Tailwind CSS v4 + shadcn/ui v4                     | 4.2.2            |
+| Backend             | NestJS + Express adapter                           | 11.1.19          |
+| Backend compiler    | SWC (via NestJS CLI)                               | —                |
+| Database            | PostgreSQL 16 via Drizzle ORM                      | 0.45.2           |
+| Auth                | Better Auth                                        | 1.6.3            |
+| API contracts       | ts-rest + Zod                                      | 3.52.1 / 3.25.76 |
+| Realtime            | Socket.IO + Postgres LISTEN/NOTIFY + Redis pub/sub | 4.8.3            |
+| Env validation      | @t3-oss/env                                        | 0.13.11          |
+| Schema validation   | drizzle-zod + Zod                                  | 0.8.3 / 3.25.76  |
+| Testing             | Playwright (e2e), Jest + ts-jest (unit)            | 1.59.1 / 29.x    |
+| Formatting          | Biome                                              | 2.4.12           |
+| TypeScript          |                                                    | 5.7.3            |
+| Node.js             |                                                    | 24+              |
 
 ## Repository Structure
 
@@ -131,6 +131,7 @@ docker-compose.yml              # Postgres 16 + Redis 7
 ## Common Commands
 
 ### Setup
+
 ```bash
 pnpm install
 docker compose up -d
@@ -140,6 +141,7 @@ pnpm build
 ```
 
 ### Development
+
 ```bash
 pnpm dev                        # Start all apps
 pnpm --filter @consistent/api dev
@@ -147,12 +149,14 @@ pnpm --filter @consistent/web dev
 ```
 
 ### Build
+
 ```bash
 pnpm build                      # Build all packages + apps
 turbo prune @consistent/api --docker  # Prune for API Docker build
 ```
 
 ### Test
+
 ```bash
 pnpm test                       # Unit tests (Jest for API)
 pnpm --filter @consistent/api test  # API unit tests (repositories + services)
@@ -162,6 +166,7 @@ pnpm typecheck                  # TypeScript checks
 ```
 
 ### Database
+
 ```bash
 pnpm db:generate                # Generate migration from schema changes
 pnpm db:generate:custom         # Create empty custom migration (triggers, functions)
@@ -171,11 +176,13 @@ pnpm db:studio                  # Open Drizzle Studio GUI
 ```
 
 Note: `db:migrate` requires `DATABASE_URL` env var. If running via turbo fails, use:
+
 ```bash
 cd packages/db && env $(cat ../../.env | grep -v '^#' | xargs) npx drizzle-kit migrate
 ```
 
 ### Formatting
+
 ```bash
 pnpm format                     # Biome format
 pnpm format:check               # Check without writing
@@ -185,16 +192,17 @@ pnpm format:check               # Check without writing
 
 ### Tables (in `packages/db/src/schema/`)
 
-| Table | PK | Description |
-|-------|-----|-------------|
-| `user` | text | Better Auth user + `timezone`, `preferences` (JSONB typed as `UserPreferences`) |
-| `goals` | bigserial (number) | User goals with denormalized `totalTasks`/`completedTasks` counters |
-| `tasks` | bigserial (number) | Tasks within goals, with `blockerCount` (denormalized) |
-| `task_dependencies` | composite (taskId, dependsOnId) | DAG edges — `(A, B)` means "A depends on B" |
-| `schedule_runs` | bigserial (number) | LLM scheduling audit log |
-| `scheduled_blocks` | bigserial (number) | Calendar time blocks for tasks |
+| Table               | PK                              | Description                                                                     |
+| ------------------- | ------------------------------- | ------------------------------------------------------------------------------- |
+| `user`              | text                            | Better Auth user + `timezone`, `preferences` (JSONB typed as `UserPreferences`) |
+| `goals`             | bigserial (number)              | User goals with denormalized `totalTasks`/`completedTasks` counters             |
+| `tasks`             | bigserial (number)              | Tasks within goals, with `blockerCount` (denormalized)                          |
+| `task_dependencies` | composite (taskId, dependsOnId) | DAG edges — `(A, B)` means "A depends on B"                                     |
+| `schedule_runs`     | bigserial (number)              | LLM scheduling audit log                                                        |
+| `scheduled_blocks`  | bigserial (number)              | Calendar time blocks for tasks                                                  |
 
 ### Column conventions
+
 - Domain PKs: `bigserial('id', { mode: 'number' })`
 - Domain FKs to other domain tables: `bigint('col', { mode: 'number' }).references(() => table.id, { onDelete: 'cascade' })`
 - User FKs: `text('user_id').references(() => user.id, { onDelete: 'cascade' })` (text, matches auth user.id)
@@ -203,6 +211,7 @@ pnpm format:check               # Check without writing
 - JSONB: `jsonb('col').$type<Interface>()`
 
 ### Database triggers (custom SQL in `drizzle/0002_triggers_and_functions.sql`)
+
 - **`update_goal_counters`** — maintains `goals.total_tasks`/`completed_tasks` on task INSERT/UPDATE/DELETE
 - **`update_blocker_counts`** — adjusts `tasks.blocker_count` when dependency edges are added/removed
 - **`cascade_blocker_count`** — when a task completes/uncompletes, cascades to dependents' blocker counts
@@ -211,6 +220,7 @@ pnpm format:check               # Check without writing
 - **`reconcile_counters()`** — repair function that recomputes all denormalized counters from source-of-truth
 
 ### Key rules
+
 - **Never use `COUNT(*)` for goal progress** — read `goals.totalTasks`/`completedTasks` directly
 - **Cycle detection is in the DB trigger**, not application code (TOCTOU-safe under concurrent inserts)
 - **Partial index** `idx_tasks_ready` on `tasks(user_id) WHERE blocker_count = 0 AND status = 'pending'` — used by `findReadyForUser()`
@@ -219,17 +229,20 @@ pnpm format:check               # Check without writing
 ## NestJS Module Architecture
 
 ### DrizzleModule (`apps/api/src/db/`)
+
 - `@Global()` module providing `DRIZZLE` Symbol token
 - Factory creates a `pg.Pool` + `drizzle(pool, { schema })` using `env.DATABASE_URL`
 - All repositories inject via `@Inject(DRIZZLE) private readonly db: DrizzleDB`
 
 ### Repository pattern
+
 - One repository per domain: `UsersRepository`, `GoalsRepository`, `TasksRepository`, `DependenciesRepository`, `SchedulingRepository`
 - Repositories only return data and accept inserts/updates — **no business logic**
 - Use `typeof table.$inferInsert` / `$inferSelect` for entity types
 - `DependenciesRepository.create()` catches Postgres cycle error → throws `BadRequestException`
 
 ### Service layer
+
 - One service per domain: `GoalsService`, `TasksService`, `SchedulingService`
 - Services wrap repositories with business logic: ownership verification, input validation, status transitions
 - `GoalsService` — title validation, `completedAt` management on status changes, computed `progress` in `findAll()`, emits `goal:updated`
@@ -238,6 +251,7 @@ pnpm format:check               # Check without writing
 - Controllers delegate to services; services delegate to repositories
 
 ### Controllers
+
 - `GoalsController` — `POST/GET/PATCH/DELETE /v1/goals`, `GET /v1/goals/:id/progress`
 - `TasksController` — `POST/GET /v1/goals/:goalId/tasks`, `POST /v1/goals/:goalId/tasks/bulk`, `GET /v1/goals/:goalId/dag`, `GET /v1/tasks/ready`, `GET/PATCH/DELETE /v1/tasks/:id`, `POST/DELETE /v1/tasks/:id/dependencies`
 - `SchedulingController` — `POST/GET/PATCH/DELETE /v1/schedule/blocks`, `GET /v1/schedule/now`
@@ -275,6 +289,7 @@ pnpm format:check               # Check without writing
 Services emit lightweight WebSocket events after mutations. The frontend invalidates React Query caches on receipt, triggering a refetch — no full entity sync over WebSocket.
 
 ### Flow
+
 1. Service mutates DB (e.g., `TasksService.update()`)
 2. Service calls `this.realtime.broadcastToUser(userId, EVENTS.TASK_UPDATED, { taskId, goalId })`
 3. Gateway emits to `user:<userId>` Socket.IO room
@@ -282,13 +297,15 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 5. React Query refetches the affected endpoint(s)
 
 ### Events (defined in `packages/realtime/src/events.ts`)
-| Event | Emitted by | Payload | Invalidates |
-|-------|-----------|---------|-------------|
-| `goal:updated` | GoalsService, TasksService | `{ goalId }` | `["goals"]` |
-| `task:updated` | TasksService | `{ taskId, goalId }` | `["goals"]`, `["schedule"]` |
-| `schedule:updated` | SchedulingService | `{ blockId? }` | `["schedule"]` |
+
+| Event              | Emitted by                 | Payload              | Invalidates                 |
+| ------------------ | -------------------------- | -------------------- | --------------------------- |
+| `goal:updated`     | GoalsService, TasksService | `{ goalId }`         | `["goals"]`                 |
+| `task:updated`     | TasksService               | `{ taskId, goalId }` | `["goals"]`, `["schedule"]` |
+| `schedule:updated` | SchedulingService          | `{ blockId? }`       | `["schedule"]`              |
 
 ### Key patterns
+
 - `RealtimeGateway.broadcastToUser(userId, event, payload)` — scoped to user's room, no cross-user leaks
 - `RealtimeModule` is exported and imported by GoalsModule, TasksModule, SchedulingModule
 - Socket.IO client (`apps/web/src/lib/socket.ts`) uses `withCredentials: true` for session cookie auth
@@ -297,18 +314,22 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 ## API Endpoints
 
 ### Auth (Better Auth — outside `/v1/`)
+
 - `POST /api/auth/sign-up/email` — Register
 - `POST /api/auth/sign-in/email` — Login
 - `GET /api/auth/session` — Get session
 
 ### Health
+
 - `GET /v1/health` — DB + Redis health check
 - `GET /v1/version` — API version
 
 ### User
+
 - `GET /v1/me` — Authenticated user info
 
 ### Goals (all protected)
+
 - `GET /v1/goals?status=` — List goals with computed `progress` percentage
 - `POST /v1/goals` — Create goal
 - `GET /v1/goals/:id` — Get goal
@@ -317,6 +338,7 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 - `GET /v1/goals/:id/progress` — Get denormalized progress counters
 
 ### Tasks (all protected)
+
 - `POST /v1/goals/:goalId/tasks` — Create task
 - `POST /v1/goals/:goalId/tasks/bulk` — Bulk create tasks with dependencies
 - `GET /v1/goals/:goalId/tasks` — List tasks for goal
@@ -329,6 +351,7 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 - `DELETE /v1/tasks/:id/dependencies/:dependsOnId` — Remove dependency edge
 
 ### Scheduling (all protected)
+
 - `POST /v1/schedule/blocks` — Create scheduled block
 - `GET /v1/schedule/blocks?start=&end=` — Get blocks in range (joined with task + goal)
 - `GET /v1/schedule/now` — Get currently active block (joined with task + goal)
@@ -336,6 +359,7 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 - `DELETE /v1/schedule/blocks/:id` — Delete block
 
 ### AI Assistant
+
 - `POST /chat/:agentId` — Streaming chat endpoint (mounted by Mastra, not under `/v1/`). Session cookie auth via `@mastra/auth-better-auth`. An Express middleware injects `memory: { resource, thread }` server-side so clients cannot target another user's thread. Agent id is `consistent-coach`.
 - `GET /v1/ai/threads/:threadId/messages` — Protected (`AuthGuard`). Enforces `threadId` ownership via `buildThreadId(userId)`. Returns Mastra-persisted thread messages in assistant-ui shape.
 
@@ -358,28 +382,33 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 ## Adding New Features
 
 ### New API endpoint
+
 1. Add Zod schema to `packages/contracts/src/v1/`
 2. Create NestJS controller with `@Controller({ version: '1' })`
 3. Add guard if protected: `@UseGuards(AuthGuard)`
 4. Consume from web via ts-rest client or direct fetch
 
 ### New realtime event
+
 1. Define event name in `EVENTS` const + Zod payload schema in `packages/realtime/src/events.ts`
 2. Emit from the relevant service via `this.realtime.broadcastToUser(userId, EVENTS.XXX, payload)`
 3. Add listener in `apps/web/src/lib/use-realtime.ts` that calls `queryClient.invalidateQueries()`
 
 ### New database table or column
+
 1. Edit/create schema file in `packages/db/src/schema/`
 2. Re-export from `packages/db/src/schema/index.ts`
 3. `pnpm db:generate` to create migration SQL
 4. Review generated SQL, then `pnpm db:migrate` to apply
 
 ### New trigger or database function
+
 1. `pnpm db:generate:custom --name=description` to create empty migration
 2. Write SQL in the generated file
 3. `pnpm db:migrate` to apply
 
 ### New domain module (API)
+
 1. Create directory under `apps/api/src/<domain>/`
 2. Create `<domain>.repository.ts` — inject `DRIZZLE`, wrap Drizzle queries
 3. Create `<domain>.service.ts` — inject repository, add business logic (validation, ownership, status transitions)
@@ -389,25 +418,56 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 7. Write tests in `<domain>.repository.spec.ts` and `<domain>.service.spec.ts`
 
 ### New protected route (frontend)
+
 1. Use `useSession()` from `@/lib/auth-client` to check auth
 2. Redirect to `/sign-in` if no session
 
 ## Environment Variables
 
 ### API (`apps/api`)
-| Variable | Public | Description |
-|----------|--------|-------------|
-| `DATABASE_URL` | No | PostgreSQL connection string |
-| `REDIS_URL` | No | Redis connection string |
-| `BETTER_AUTH_SECRET` | No | 32+ char secret for session signing |
-| `BETTER_AUTH_URL` | No | Public URL of the API |
-| `WEB_ORIGIN` | No | Frontend URL for CORS + trusted origins |
-| `PORT` | No | API port (default: 3001) |
+
+| Variable             | Public | Description                             |
+| -------------------- | ------ | --------------------------------------- |
+| `DATABASE_URL`       | No     | PostgreSQL connection string            |
+| `REDIS_URL`          | No     | Redis connection string                 |
+| `BETTER_AUTH_SECRET` | No     | 32+ char secret for session signing     |
+| `BETTER_AUTH_URL`    | No     | Public URL of the API                   |
+| `WEB_ORIGIN`         | No     | Frontend URL for CORS + trusted origins |
+| `PORT`               | No     | API port (default: 3001)                |
 
 ### Web (`apps/web`)
-| Variable | Public | Description |
-|----------|--------|-------------|
-| `NEXT_PUBLIC_API_URL` | Yes | API URL for client-side requests |
+
+| Variable              | Public | Description                      |
+| --------------------- | ------ | -------------------------------- |
+| `NEXT_PUBLIC_API_URL` | Yes    | API URL for client-side requests |
+
+## TypeScript: no `any`
+
+**`any` is banned in this codebase.** This includes `: any`, `as any`, `<any>`, `Array<any>`, and any other use of the explicit `any` keyword. The ESLint rule `@typescript-eslint/no-explicit-any` is set to `error` in `tooling/eslint-config/base.js` and inherited by every package — `pnpm lint` will fail.
+
+`any` defeats the purpose of TypeScript: it silently disables every check downstream of the type, so a renamed field, a removed function, or a wrong-shape API response slips through type-checking and surfaces as a runtime crash. The body-parser bug in commit `47a955b` was masked by `(express as any).all(...)` — a properly typed Express adapter would have made it visible.
+
+**Reach for these instead, in order:**
+
+1. **`unknown`** — for values whose shape isn't known yet. Forces you to narrow before use.
+2. **A discriminated union or proper type** — most "I don't know what this is" cases are actually "this is one of N things." Define them.
+3. **Generics** — for code that's polymorphic over its input type (e.g., a chain mock).
+4. **Type the third-party shape yourself** — write a narrow `type X = { ... }` for the bit you actually use, even if the library is untyped.
+
+**The escape hatch (use rarely):**
+
+When you genuinely cannot type something — an untyped third-party callback, a JSON.parse result you're about to validate, a deliberately polymorphic test helper — suppress per-line with a reason:
+
+```ts
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- mastra registerApiRoute middleware signature is unexported
+middleware: (req: any, res: any, next: any) => { ... }
+```
+
+The `-- <reason>` is required by the ESLint config. PRs that introduce `any` without a written reason should be rejected. If you're disabling the rule on more than one line in the same file, that's a smell — define a type instead.
+
+**Related rules** (also in `tooling/eslint-config/base.js`):
+
+- `@typescript-eslint/ban-ts-comment` — `@ts-ignore` and `@ts-nocheck` are errors. Use `@ts-expect-error` with a description (≥10 chars) when you must — it surfaces if the underlying issue is fixed.
 
 ## Gotchas
 
@@ -448,11 +508,13 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 This is critical — parallel sessions may be running on the same branch. Batching changes risks merge conflicts and makes rollbacks impossible. Each commit should be self-contained and deployable.
 
 Examples of logical units:
+
 - Installing a dependency → commit `package.json` + `pnpm-lock.yaml`
 - Updating a theme/config → commit the config files together
 - Rewriting a single page → commit that page file
 
 List each file path explicitly:
+
 ```bash
 # New files
 git restore --staged :/ && git add "path/to/file1" "path/to/file2" && git commit -m "<scoped message>"
@@ -461,7 +523,7 @@ git restore --staged :/ && git add "path/to/file1" "path/to/file2" && git commit
 git commit -m "<scoped message>" -- path/to/file1 path/to/file2
 ```
 
-#IMPORTANT - ATOMIC COMMITS
+# IMPORTANT - ATOMIC COMMITS GIT WORKFLOW
 
-Perform atomic commits!
+COMMIT after every small change or unit of work is done.
 Never use `git add .` or `git add -A`. Never batch multiple unrelated changes into one commit. Never wait until the end of a task to commit — commit as you go.
