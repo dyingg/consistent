@@ -4,6 +4,7 @@ import { MastraAuthBetterAuth } from "@mastra/auth-better-auth";
 import type { Agent } from "@mastra/core/agent";
 import type { PostgresStore } from "@mastra/pg";
 import { Observability } from "@mastra/observability";
+import { SpanType } from "@mastra/core/observability";
 import { LangSmithExporter } from "@mastra/langsmith";
 import { auth } from "@consistent/auth";
 import type { Auth } from "better-auth";
@@ -24,6 +25,7 @@ export function createMastra(agent: Agent, store: PostgresStore): Mastra {
                 projectName: env.LANGSMITH_PROJECT,
               }),
             ],
+            excludeSpanTypes: [SpanType.MODEL_CHUNK],
           },
         },
       })
