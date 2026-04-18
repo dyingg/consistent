@@ -7,6 +7,11 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Logger } from "@nestjs/common";
+import type { AuthUser } from "@consistent/auth";
+
+// AuthenticatedIoAdapter attaches user/sessionData onto every connecting
+// socket. Mirror that shape here so handleConnection doesn't have to cast.
+type AuthedSocket = Socket & { user?: AuthUser };
 
 @WebSocketGateway()
 export class RealtimeGateway
@@ -17,8 +22,8 @@ export class RealtimeGateway
 
   private logger = new Logger(RealtimeGateway.name);
 
-  handleConnection(client: Socket) {
-    const user = (client as any).user;
+  handleConnection(client: AuthedSocket) {
+    const user = client.user;
     this.logger.log(
       `Client connected: ${client.id}, user: ${user?.email ?? "unknown"}`,
     );

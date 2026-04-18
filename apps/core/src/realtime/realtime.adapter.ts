@@ -1,8 +1,14 @@
 import { IoAdapter } from "@nestjs/platform-socket.io";
 import { INestApplicationContext } from "@nestjs/common";
+import type { Socket } from "socket.io";
 import { ServerOptions, Server } from "socket.io";
-import { auth } from "@consistent/auth";
+import { auth, type AuthSession } from "@consistent/auth";
 import { env } from "../env";
+
+type AuthedSocket = Socket & {
+  user: AuthSession["user"];
+  sessionData: AuthSession["session"];
+};
 
 export class AuthenticatedIoAdapter extends IoAdapter {
   constructor(private appContext: INestApplicationContext) {
@@ -33,8 +39,9 @@ export class AuthenticatedIoAdapter extends IoAdapter {
           return next(new Error("Invalid session"));
         }
 
-        (socket as any).user = session.user;
-        (socket as any).sessionData = session.session;
+        const authed = socket as AuthedSocket;
+        authed.user = session.user;
+        authed.sessionData = session.session;
         next();
       } catch {
         next(new Error("Authentication failed"));
