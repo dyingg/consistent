@@ -1,9 +1,10 @@
 import { Agent } from "@mastra/core/agent";
+import type { ToolsInput } from "@mastra/core/agent";
 import type { Memory } from "@mastra/memory";
 import { COACH_SYSTEM_PROMPT } from "./prompts/coach";
 
 export interface CoachAgentOptions {
-  tools: Record<string, unknown>;
+  tools: ToolsInput;
   memory: Memory;
   model: string;
 }
@@ -19,10 +20,8 @@ export function createCoachAgent(opts: CoachAgentOptions): Agent {
     id: "consistent-coach",
     name: "Consistent Coach",
     instructions: COACH_SYSTEM_PROMPT,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Agent's `model` accepts a string id at runtime; the public type wants a LanguageModel instance
-    model: opts.model as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tools is a heterogeneous record by design; Mastra's ToolsInput generic isn't exported
-    tools: opts.tools as any,
+    model: opts.model,
+    tools: opts.tools,
     memory: opts.memory,
   });
 }
