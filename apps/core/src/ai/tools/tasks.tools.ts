@@ -1,29 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import type { TasksService } from "../../tasks/tasks.service";
-
-const RESOURCE_ID_KEY = "mastra__resourceId";
-
-function getUserId(context: any): string {
-  const userId = context?.requestContext?.get(RESOURCE_ID_KEY) as
-    | string
-    | undefined;
-  if (!userId) throw new Error("unauthorized");
-  return userId;
-}
-
-async function safe<T>(
-  fn: () => Promise<T>,
-): Promise<T | { error: true; message: string }> {
-  try {
-    return await fn();
-  } catch (err) {
-    return {
-      error: true,
-      message: err instanceof Error ? err.message : "internal_error",
-    };
-  }
-}
+import { getUserId, safe } from "./context";
 
 function toDate(v: string | null | undefined): Date | null | undefined {
   if (v === undefined) return undefined;
@@ -54,14 +32,20 @@ const taskFields = z.object({
   contextTags: z.array(z.string()).nullable().optional(),
 });
 
-function normalizeDates<T extends { earliestStart?: any; deadline?: any }>(
-  patch: T,
-): T {
-  const out: any = { ...patch };
+function normalizeDates<
+  T extends { earliestStart?: string | null; deadline?: string | null },
+>(patch: T): Omit<T, "earliestStart" | "deadline"> & {
+  earliestStart?: Date | null;
+  deadline?: Date | null;
+} {
+  const out: Record<string, unknown> = { ...patch };
   if ("earliestStart" in patch)
     out.earliestStart = toDate(patch.earliestStart);
   if ("deadline" in patch) out.deadline = toDate(patch.deadline);
-  return out;
+  return out as Omit<T, "earliestStart" | "deadline"> & {
+    earliestStart?: Date | null;
+    deadline?: Date | null;
+  };
 }
 
 const dependencyInput = z.object({
@@ -129,7 +113,7 @@ export function createTaskTools(tasksService: TasksService) {
           task: await tasksService.create(
             getUserId(context),
             goalId,
-            normalizeDates(rest) as any,
+            normalizeDates(rest),
           ),
         };
       }),
@@ -148,7 +132,7 @@ export function createTaskTools(tasksService: TasksService) {
     execute: async (input, context) =>
       safe(async () =>
         tasksService.bulkCreate(getUserId(context), input.goalId, {
-          tasks: input.tasks.map((t) => normalizeDates(t) as any),
+          tasks: input.tasks.map((t) => normalizeDates(t)),
           dependencies: input.dependencies,
         }),
       ),
@@ -197,7 +181,7 @@ export function createTaskTools(tasksService: TasksService) {
           task: await tasksService.update(
             getUserId(context),
             taskId,
-            normalizeDates(patch) as any,
+            normalizeDates(patch),
           ),
         };
       }),

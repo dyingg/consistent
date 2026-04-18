@@ -1,8 +1,8 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import type { UsersRepository } from "../../users/users.repository";
+import { getUserId, type ToolContext } from "./context";
 
-const RESOURCE_ID_KEY = "mastra__resourceId";
 export const USER_TIMEZONE_KEY = "userTimezone";
 export const CLIENT_TIME_KEY = "clientTime";
 
@@ -16,13 +16,13 @@ function isValidTimezone(tz: unknown): tz is string {
   }
 }
 
-function pickFromContext(context: any, key: string): string | undefined {
-  const raw = context?.requestContext?.get?.(key);
+function pickFromContext(context: ToolContext, key: string): string | undefined {
+  const raw = context?.requestContext?.get(key);
   return typeof raw === "string" && raw.length > 0 ? raw : undefined;
 }
 
 async function resolveTimezone(
-  context: any,
+  context: ToolContext,
   usersRepository: UsersRepository,
   userId: string,
 ): Promise<{ timezone: string; fromBrowser: boolean }> {
@@ -94,10 +94,7 @@ export function createTimeTools(usersRepository: UsersRepository) {
         .describe("YYYY-MM-DD date in the user's timezone"),
     }),
     execute: async (_input, context) => {
-      const userId = context?.requestContext?.get?.(RESOURCE_ID_KEY) as
-        | string
-        | undefined;
-      if (!userId) throw new Error("unauthorized");
+      const userId = getUserId(context);
 
       const { timezone, fromBrowser } = await resolveTimezone(
         context,

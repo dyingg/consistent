@@ -1,29 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import type { SchedulingService } from "../../scheduling/scheduling.service";
-
-const RESOURCE_ID_KEY = "mastra__resourceId";
-
-function getUserId(context: any): string {
-  const userId = context?.requestContext?.get(RESOURCE_ID_KEY) as
-    | string
-    | undefined;
-  if (!userId) throw new Error("unauthorized");
-  return userId;
-}
-
-async function safe<T>(
-  fn: () => Promise<T>,
-): Promise<T | { error: true; message: string }> {
-  try {
-    return await fn();
-  } catch (err) {
-    return {
-      error: true,
-      message: err instanceof Error ? err.message : "internal_error",
-    };
-  }
-}
+import { getUserId, safe } from "./context";
 
 export function createSchedulingTools(schedulingService: SchedulingService) {
   const getSchedule = createTool({
