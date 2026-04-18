@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import type { AuthUser } from "@consistent/auth";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUser } from "../auth/auth.decorator";
 import { GoalsService } from "./goals.service";
@@ -21,23 +22,23 @@ export class GoalsController {
   constructor(private readonly goalsService: GoalsService) {}
 
   @Post("goals")
-  create(@CurrentUser() user: any, @Body() body: CreateGoalInput) {
+  create(@CurrentUser() user: AuthUser, @Body() body: CreateGoalInput) {
     return this.goalsService.create(user.id, body);
   }
 
   @Get("goals")
-  findAll(@CurrentUser() user: any, @Query("status") status?: string) {
+  findAll(@CurrentUser() user: AuthUser, @Query("status") status?: string) {
     return this.goalsService.findAll(user.id, status);
   }
 
   @Get("goals/:id")
-  findOne(@CurrentUser() user: any, @Param("id", ParseIntPipe) id: number) {
+  findOne(@CurrentUser() user: AuthUser, @Param("id", ParseIntPipe) id: number) {
     return this.goalsService.findById(user.id, id);
   }
 
   @Patch("goals/:id")
   update(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
     @Body() body: UpdateGoalInput,
   ) {
@@ -45,13 +46,13 @@ export class GoalsController {
   }
 
   @Delete("goals/:id")
-  remove(@CurrentUser() user: any, @Param("id", ParseIntPipe) id: number) {
+  remove(@CurrentUser() user: AuthUser, @Param("id", ParseIntPipe) id: number) {
     return this.goalsService.delete(user.id, id);
   }
 
   @Get("goals/:id/progress")
   getProgress(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
   ) {
     return this.goalsService.getProgress(user.id, id);

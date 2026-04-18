@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import type { AuthUser } from "@consistent/auth";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUser } from "../auth/auth.decorator";
 import { SchedulingService } from "./scheduling.service";
@@ -22,13 +23,13 @@ export class SchedulingController {
   constructor(private readonly schedulingService: SchedulingService) {}
 
   @Post("schedule/blocks")
-  createBlock(@CurrentUser() user: any, @Body() body: CreateBlockInput) {
+  createBlock(@CurrentUser() user: AuthUser, @Body() body: CreateBlockInput) {
     return this.schedulingService.createBlock(user.id, body);
   }
 
   @Get("schedule/blocks")
   getBlocks(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("start") start: string,
     @Query("end") end: string,
   ) {
@@ -50,13 +51,13 @@ export class SchedulingController {
   }
 
   @Get("schedule/now")
-  getCurrentBlock(@CurrentUser() user: any) {
+  getCurrentBlock(@CurrentUser() user: AuthUser) {
     return this.schedulingService.getCurrentBlock(user.id);
   }
 
   @Patch("schedule/blocks/:id")
   updateBlock(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
     @Body()
     body: {
@@ -88,7 +89,7 @@ export class SchedulingController {
 
   @Post("schedule/blocks/shift")
   shift(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Body()
     body: {
       deltaMinutes: number;
@@ -122,7 +123,7 @@ export class SchedulingController {
 
   @Delete("schedule/blocks/:id")
   deleteBlock(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseIntPipe) id: number,
   ) {
     return this.schedulingService.deleteBlock(user.id, id);
