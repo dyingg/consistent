@@ -366,7 +366,7 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 ## AI Module (`apps/core/src/ai/`)
 
 - **`consistent-coach` agent** — mentor-coach persona (`prompts/coach.ts`). Interview-first flow, Fibonacci sprint-point breakdown (1/2/3/5/8/13), writes `context` on every task, confirms in text before delete.
-- **16 tools** — `tools/{goals,tasks,scheduling}.tools.ts`. Each pulls `userId` from `requestContext.get("mastra__resourceId")` (populated by `MastraAuthBetterAuth`) and delegates to the existing services, which emit realtime events for free.
+- **Tools** — `tools/{goals,tasks,scheduling,time}.tools.ts`. Each pulls `userId` from `requestContext.get("mastra__resourceId")` (populated by `MastraAuthBetterAuth`) and delegates to the existing services, which emit realtime events for free. `delete-task` takes a `taskIds: number[]` and deletes one or many in a single call (all-or-nothing via `TasksService.bulkDelete`) — prefer it over looping delete calls.
 - **Memory** — `memory.ts` creates a `Memory` backed by `PostgresStore` in schema `mastra`. `store.init()` runs at bootstrap and creates tables if missing.
 - **Bootstrap** — `ai.bootstrap.ts` mounts Mastra on Express during `onApplicationBootstrap`, with the `chatMemoryGuard` middleware registered before chat routes.
 - **Frontend** — `apps/web/src/components/coach/` uses `@assistant-ui/react` primitives + `useChatRuntime` + `AssistantChatTransport` pointed at `/chat/consistent-coach`. History loads via `ThreadHistoryAdapter`.
