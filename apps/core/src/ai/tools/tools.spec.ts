@@ -39,6 +39,7 @@ describe("createTools", () => {
     bulkCreate: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    bulkDelete: jest.fn(),
   } as unknown as TasksService;
 
   const mockSchedulingService = {
