@@ -505,6 +505,7 @@ function OverdueHero() {
 
 function TodaySection() {
   const today = useMemo(() => new Date(), []);
+  const shouldReduceMotion = useReducedMotion();
   const { data: blocks = [] } = useQuery({
     queryKey: ["schedule", "today"],
     queryFn: () => api.schedule.blocks(startOfDay(today), endOfDay(today)),
@@ -600,21 +601,50 @@ function TodaySection() {
                 />
 
                 {/* Checkbox */}
-                <div
+                <motion.div
                   className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150"
                   style={{
                     borderColor: goalColor,
                     backgroundColor: isCompleted ? goalColor : "transparent",
                   }}
+                  animate={
+                    shouldReduceMotion
+                      ? undefined
+                      : { scale: isCompleted ? [1, 1.18, 1] : 1 }
+                  }
+                  transition={{
+                    duration: 0.32,
+                    ease: easeOutExpo,
+                    times: [0, 0.45, 1],
+                  }}
                 >
-                  {isCompleted && (
-                    <Check
-                      size={10}
-                      strokeWidth={3}
-                      className="text-background"
-                    />
-                  )}
-                </div>
+                  <AnimatePresence initial={false}>
+                    {isCompleted && (
+                      <motion.span
+                        key="check"
+                        initial={
+                          shouldReduceMotion
+                            ? false
+                            : { scale: 0, opacity: 0 }
+                        }
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={
+                          shouldReduceMotion
+                            ? undefined
+                            : { scale: 0, opacity: 0 }
+                        }
+                        transition={{ duration: 0.18, ease: easeOutExpo }}
+                        className="flex items-center justify-center"
+                      >
+                        <Check
+                          size={10}
+                          strokeWidth={3}
+                          className="text-background"
+                        />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
 
                 {/* Title + description */}
                 <div className="flex-1 min-w-0">
