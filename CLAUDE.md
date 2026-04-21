@@ -507,6 +507,16 @@ The `-- <reason>` is required by the ESLint config. PRs that introduce `any` wit
 
 This is critical — parallel sessions may be running on the same branch. Batching changes risks merge conflicts and makes rollbacks impossible. Each commit should be self-contained and deployable.
 
+Every commit must be:
+
+- **Reviewable** — a reader can understand it in 5–15 minutes. If the diff is too sprawling to hold in your head, it's too big.
+- **Atomic** — one logical change. Don't smuggle an unrelated rename, formatting sweep, or drive-by fix into a feature commit. Split them.
+- **Buildable** — the project compiles after the commit. No "will fix in next commit" broken states. `pnpm build` (or the relevant package build) must pass.
+- **Testable** — tests pass after the commit. If a test is intentionally skipped or pending, note it in the commit message (e.g. "test skipped pending fixture work in #123").
+- **Revertable** — `git revert <sha>` can undo the commit without breaking unrelated features. If reverting would cascade into other commits, the boundaries are wrong.
+
+If a change doesn't meet all five, split it. Common splits: (1) refactor first → feature on top, (2) schema/migration first → code using it next, (3) dependency bump alone → usage in a follow-up, (4) rename/move alone → behavior change after.
+
 Examples of logical units:
 
 - Installing a dependency → commit `package.json` + `pnpm-lock.yaml`
