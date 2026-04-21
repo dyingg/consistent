@@ -57,6 +57,13 @@
       "when": 1776805538710,
       "tag": "0007_inbox_protection",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776805580390,
+      "tag": "0008_backfill_inbox_goals",
+      "breakpoints": true
     }
   ]
 }
