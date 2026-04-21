@@ -122,6 +122,27 @@ describe("GoalsService", () => {
         service.create(userId, { title: "   " }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it.each(["Inbox", "inbox", "INBOX", "  Inbox  "])(
+      "should reject the reserved title %p",
+      async (title) => {
+        await expect(service.create(userId, { title })).rejects.toThrow(
+          BadRequestException,
+        );
+        await expect(service.create(userId, { title })).rejects.toThrow(
+          /reserved title/,
+        );
+        expect(goalsRepo.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should allow titles that merely contain 'inbox'", async () => {
+      goalsRepo.create.mockResolvedValue(mockGoal as any);
+      await service.create(userId, { title: "My Inbox Cleanup" });
+      expect(goalsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "My Inbox Cleanup" }),
+      );
+    });
   });
 
   // ── findAll ─────────────────────────────────────────────
@@ -230,6 +251,26 @@ describe("GoalsService", () => {
       await expect(
         service.update(userId, 1, { title: "   " }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it("should reject renaming a non-inbox goal to 'Inbox'", async () => {
+      await expect(
+        service.update(userId, 1, { title: "Inbox" }),
+      ).rejects.toThrow(/reserved title/);
+      expect(goalsRepo.update).not.toHaveBeenCalled();
+    });
+
+    it("should allow renaming the Inbox back to 'Inbox'", async () => {
+      const inbox = { ...mockGoal, isInbox: true, title: "Quick tasks" };
+      goalsRepo.findById.mockResolvedValue(inbox as any);
+      goalsRepo.update.mockResolvedValue({ ...inbox, title: "Inbox" } as any);
+
+      await service.update(userId, 1, { title: "Inbox" });
+
+      expect(goalsRepo.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ title: "Inbox" }),
+      );
     });
 
     it("should set completedAt when status changes to completed", async () => {

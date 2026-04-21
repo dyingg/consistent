@@ -11,6 +11,13 @@ import { EVENTS } from "@consistent/realtime";
 
 type GoalInsert = typeof goals.$inferInsert;
 
+// Titles reserved for system goals — user/agent can't create or rename into them.
+const RESERVED_TITLES = new Set(["inbox"]);
+
+function isReservedTitle(title: string): boolean {
+  return RESERVED_TITLES.has(title.trim().toLowerCase());
+}
+
 export interface CreateGoalInput {
   title: string;
   description?: string | null;
@@ -42,6 +49,11 @@ export class GoalsService {
     if (!title) {
       throw new BadRequestException("Title is required");
     }
+    if (isReservedTitle(title)) {
+      throw new BadRequestException(
+        `'${title}' is a reserved title — the Inbox goal is created automatically and cannot be duplicated`,
+      );
+    }
     const goal = await this.goalsRepo.create({ ...data, title, userId });
     this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId: goal.id });
     return goal;
@@ -67,12 +79,17 @@ export class GoalsService {
   }
 
   async update(userId: string, goalId: number, data: UpdateGoalInput) {
-    await this.findById(userId, goalId);
+    const existing = await this.findById(userId, goalId);
 
     if (data.title !== undefined) {
       const title = data.title.trim();
       if (!title) {
         throw new BadRequestException("Title is required");
+      }
+      if (isReservedTitle(title) && !existing.isInbox) {
+        throw new BadRequestException(
+          `'${title}' is a reserved title — only the Inbox goal can use it`,
+        );
       }
       data.title = title;
     }
