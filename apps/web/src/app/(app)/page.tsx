@@ -189,6 +189,87 @@ function SectionLabel({
 }
 
 // ---------------------------------------------------------------------------
+// Task-completion mutation — single source of truth.
+//
+// Why this lives at the page level and not per-component: every surface that
+// flips a task's status (Now hero, Overdue hero, Today list) writes into the
+// SAME React Query cache entries. Components subscribe to the cache for
+// display. Realtime `task:updated` events funnel through the same cache via
+// invalidation. No component-local override maps — those go stale the moment
+// another surface or a socket event changes the same task.
+// ---------------------------------------------------------------------------
+
+function useToggleTaskStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      completed,
+    }: {
+      taskId: number;
+      completed: boolean;
+    }) =>
+      api.tasks.update(taskId, {
+        status: completed ? "completed" : "scheduled",
+      }),
+    onMutate: async ({ taskId, completed }) => {
+      // Cancel in-flight refetches on the focused caches so they can't
+      // overwrite the optimistic value mid-mutation.
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["schedule", "today"] }),
+        queryClient.cancelQueries({ queryKey: ["schedule", "now"] }),
+      ]);
+
+      const snapshotToday = queryClient.getQueryData<EnrichedBlock[]>([
+        "schedule",
+        "today",
+      ]);
+      const snapshotNow = queryClient.getQueryData<EnrichedBlock | null>([
+        "schedule",
+        "now",
+      ]);
+
+      const newStatus = completed ? "completed" : "scheduled";
+
+      if (snapshotToday) {
+        queryClient.setQueryData<EnrichedBlock[]>(
+          ["schedule", "today"],
+          snapshotToday.map((b) =>
+            b.task.id === taskId
+              ? { ...b, task: { ...b.task, status: newStatus } }
+              : b,
+          ),
+        );
+      }
+
+      if (snapshotNow && snapshotNow.task.id === taskId) {
+        queryClient.setQueryData<EnrichedBlock | null>(["schedule", "now"], {
+          ...snapshotNow,
+          task: { ...snapshotNow.task, status: newStatus },
+        });
+      }
+
+      return { snapshotToday, snapshotNow };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshotToday !== undefined) {
+        queryClient.setQueryData(
+          ["schedule", "today"],
+          context.snapshotToday,
+        );
+      }
+      if (context?.snapshotNow !== undefined) {
+        queryClient.setQueryData(["schedule", "now"], context.snapshotNow);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Now Section
 // ---------------------------------------------------------------------------
 
@@ -200,18 +281,7 @@ function NowSection() {
   });
 
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  const queryClient = useQueryClient();
-
-  const completeMutation = useMutation({
-    mutationFn: (taskId: number) =>
-      api.tasks.update(taskId, { status: "completed" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schedule", "now"] });
-      queryClient.invalidateQueries({ queryKey: ["schedule", "today"] });
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-    },
-  });
+  const toggleMutation = useToggleTaskStatus();
 
   useEffect(() => {
     if (!block) return;
@@ -228,6 +298,7 @@ function NowSection() {
   if (isLoading) return null;
   if (!block) return <OverdueHero />;
 
+  const isCompleted = block.task.status === "completed";
   const start = new Date(block.startTime).getTime();
   const end = new Date(block.endTime).getTime();
   const totalSeconds = Math.floor((end - start) / 1000);
@@ -256,19 +327,19 @@ function NowSection() {
       <div className="mt-5 flex items-start gap-3.5">
         <button
           type="button"
-          onClick={() => {
-            setCompleted(!completed);
-            if (!completed) {
-              completeMutation.mutate(block.task.id);
-            }
-          }}
+          onClick={() =>
+            toggleMutation.mutate({
+              taskId: block.task.id,
+              completed: !isCompleted,
+            })
+          }
           className="mt-0.5 w-[1.375rem] h-[1.375rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-all duration-200"
           style={{
             borderColor: goalColor,
-            backgroundColor: completed ? goalColor : "transparent",
+            backgroundColor: isCompleted ? goalColor : "transparent",
           }}
         >
-          {completed && (
+          {isCompleted && (
             <Check
               size={12}
               strokeWidth={2.5}
@@ -280,7 +351,7 @@ function NowSection() {
         <div className="min-w-0">
           <p
             className={`text-[1.0625rem] font-medium text-foreground leading-snug transition-all duration-200 ${
-              completed ? "line-through opacity-40" : ""
+              isCompleted ? "line-through opacity-40" : ""
             }`}
           >
             {block.task.title}
@@ -327,9 +398,11 @@ function formatOverdue(ms: number): string {
 
 function OverdueHero() {
   const today = useMemo(() => new Date(), []);
-  const queryClient = useQueryClient();
   const shouldReduceMotion = useReducedMotion();
-  const [completed, setCompleted] = useState(false);
+  // `justTapped` is an animation-only flag: it drives the check-pop + line-
+  // through during the 350ms gap between tap and the optimistic cache write.
+  // Task status itself lives in the cache — never mirror server truth here.
+  const [justTapped, setJustTapped] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
   useEffect(() => {
@@ -358,18 +431,10 @@ function OverdueHero() {
   const firstId = overdueBlocks[0]?.task.id;
 
   useEffect(() => {
-    setCompleted(false);
+    setJustTapped(false);
   }, [firstId]);
 
-  const completeMutation = useMutation({
-    mutationFn: (taskId: number) =>
-      api.tasks.update(taskId, { status: "completed" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schedule", "now"] });
-      queryClient.invalidateQueries({ queryKey: ["schedule", "today"] });
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-    },
-  });
+  const toggleMutation = useToggleTaskStatus();
 
   const first = overdueBlocks[0];
   const goalColor = first?.goal.color ?? "oklch(50% 0.15 270)";
@@ -447,21 +512,24 @@ function OverdueHero() {
           <motion.div variants={item} className="mt-5 flex items-start gap-3.5">
             <button
               type="button"
-              disabled={completed}
+              disabled={justTapped}
               onClick={() => {
-                if (completed) return;
-                setCompleted(true);
+                if (justTapped) return;
+                setJustTapped(true);
                 window.setTimeout(() => {
-                  completeMutation.mutate(first.task.id);
+                  toggleMutation.mutate({
+                    taskId: first.task.id,
+                    completed: true,
+                  });
                 }, 350);
               }}
               className="mt-0.5 w-[1.375rem] h-[1.375rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-all duration-200 disabled:cursor-default"
               style={{
                 borderColor: goalColor,
-                backgroundColor: completed ? goalColor : "transparent",
+                backgroundColor: justTapped ? goalColor : "transparent",
               }}
             >
-              {completed && (
+              {justTapped && (
                 <Check
                   size={12}
                   strokeWidth={2.5}
@@ -473,7 +541,7 @@ function OverdueHero() {
             <div className="min-w-0">
               <p
                 className={`text-[1.0625rem] font-medium text-foreground leading-snug transition-all duration-200 ${
-                  completed ? "line-through opacity-40" : ""
+                  justTapped ? "line-through opacity-40" : ""
                 }`}
               >
                 {first.task.title}
@@ -534,33 +602,11 @@ function TodaySection() {
     queryFn: () => api.schedule.blocks(startOfDay(today), endOfDay(today)),
   });
 
-  const queryClient = useQueryClient();
-  const [localCompleted, setLocalCompleted] = useState<Record<number, boolean>>(
-    {},
-  );
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-
-  const completeMutation = useMutation({
-    mutationFn: ({ taskId, completed }: { taskId: number; completed: boolean }) =>
-      api.tasks.update(taskId, {
-        status: completed ? "completed" : "scheduled",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schedule", "today"] });
-      queryClient.invalidateQueries({ queryKey: ["schedule", "now"] });
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-    },
-  });
-
-  const toggleTask = (taskId: number, currentlyCompleted: boolean) => {
-    const newState = !currentlyCompleted;
-    setLocalCompleted((prev) => ({ ...prev, [taskId]: newState }));
-    completeMutation.mutate({ taskId, completed: newState });
-  };
+  const toggleMutation = useToggleTaskStatus();
 
   const completedCount = blocks.filter(
-    (b: EnrichedBlock) =>
-      (localCompleted[b.task.id] ?? b.task.status === "completed"),
+    (b: EnrichedBlock) => b.task.status === "completed",
   ).length;
 
   return (
@@ -579,9 +625,7 @@ function TodaySection() {
       ) : (
         <div className="flex flex-col">
           {blocks.map((block: EnrichedBlock) => {
-            const isCompleted =
-              localCompleted[block.task.id] ??
-              block.task.status === "completed";
+            const isCompleted = block.task.status === "completed";
             const goalColor = block.goal.color ?? "oklch(35% 0 270)";
             const isExpanded = expanded[block.id] ?? false;
             const hasDescription = Boolean(block.task.description);
@@ -591,7 +635,12 @@ function TodaySection() {
             return (
               <div
                 key={block.id}
-                onClick={() => toggleTask(block.task.id, isCompleted)}
+                onClick={() =>
+                  toggleMutation.mutate({
+                    taskId: block.task.id,
+                    completed: !isCompleted,
+                  })
+                }
                 className={`flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
                   isCompleted ? "opacity-40" : ""
                 }`}
