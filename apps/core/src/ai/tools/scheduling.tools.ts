@@ -67,7 +67,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
   const updateBlock = createTool({
     id: "update-block",
     description:
-      "Partial update on a scheduled block. Any subset of { status, startTime, endTime, taskId } is valid — e.g. send only endTime to extend the block. If the new time overlaps another block, the update is rejected and no schedule change is saved; explain the conflict and retry with a different time.",
+      "Partial update on a scheduled block. Any subset of { status, startTime, endTime, taskId } is valid — e.g. send only endTime to extend the block. If the new time overlaps another block, the update is rejected and no schedule change is saved; use the returned conflicts to explain what collided and retry with a different time.",
     inputSchema: z.object({
       blockId: z.number(),
       status: z
@@ -98,7 +98,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
   const shiftBlocks = createTool({
     id: "shift-blocks",
     description:
-      "Shift one or more blocks forward or backward in time by deltaMinutes (may be negative). Use blockIds when you already know which blocks to move (e.g. the ones you just listed to the user). Use afterTime when the user's day was disrupted and everything from a point onward should slide — this saves a get-schedule call. Exactly one selector must be provided. If any shifted block would overlap an unshifted block, the shift is rejected and no schedule change is saved; explain the conflict and retry with a different move.",
+      "Shift one or more blocks forward or backward in time by deltaMinutes (may be negative). Use blockIds when you already know which blocks to move (e.g. the ones you just listed to the user). Use afterTime when the user's day was disrupted and everything from a point onward should slide — this saves a get-schedule call. Exactly one selector must be provided. If any shifted block would overlap an unshifted block, the shift is rejected and no schedule change is saved; use the returned conflicts to explain what collided and retry with a different move.",
     inputSchema: z
       .object({
         deltaMinutes: z

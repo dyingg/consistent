@@ -10,6 +10,7 @@
  * Production code in apps/core has the rule at error and is fully clean.
  */
 import type { SchedulingService } from "../../scheduling/scheduling.service";
+import { BadRequestException } from "@nestjs/common";
 import { createSchedulingTools } from "./scheduling.tools";
 
 const mockRequestContext = {
@@ -151,6 +152,45 @@ describe("scheduling tools", () => {
     (svc.getCurrentBlock as jest.Mock).mockRejectedValue(new Error("boom"));
     const res = await tools["get-current-block"].execute!({}, mockContext);
     expect(res).toEqual({ error: true, message: "boom" });
+  });
+
+  it("preserves structured conflict details when service rejects a schedule update", async () => {
+    const conflicts = [
+      {
+        inputIndex: 0,
+        kind: "existing",
+        blockId: 57,
+        taskId: 67,
+        taskTitle: "Learn idiomatic Go through focused language drills",
+        startTime: "2026-04-22T02:00:00.000Z",
+        endTime: "2026-04-22T07:00:00.000Z",
+        attemptedBlockId: 58,
+        attemptedTaskId: 66,
+        attemptedStartTime: "2026-04-22T02:00:00.000Z",
+        attemptedEndTime: "2026-04-22T05:00:00.000Z",
+      },
+    ];
+    (svc.updateBlock as jest.Mock).mockRejectedValue(
+      new BadRequestException({
+        message: "Scheduled block conflicts with existing blocks",
+        conflicts,
+      }),
+    );
+
+    const res = await tools["update-block"].execute!(
+      {
+        blockId: 58,
+        startTime: "2026-04-22T02:00:00.000Z",
+        endTime: "2026-04-22T05:00:00.000Z",
+      },
+      mockContext,
+    );
+
+    expect(res).toEqual({
+      error: true,
+      message: "Scheduled block conflicts with existing blocks",
+      conflicts,
+    });
   });
 
   describe("shift-blocks", () => {
