@@ -128,6 +128,7 @@ export class SchedulingRepository {
         task: {
           id: tasks.id,
           title: tasks.title,
+          description: tasks.description,
           status: tasks.status,
           goalId: tasks.goalId,
         },
@@ -164,6 +165,7 @@ export class SchedulingRepository {
         task: {
           id: tasks.id,
           title: tasks.title,
+          description: tasks.description,
           status: tasks.status,
           goalId: tasks.goalId,
         },

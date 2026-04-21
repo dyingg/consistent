@@ -14,6 +14,7 @@ const enrichedBlockSchema = z.object({
   task: z.object({
     id: z.number(),
     title: z.string(),
+    description: z.string().nullable(),
     status: z.enum([
       "pending",
       "ready",
