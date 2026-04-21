@@ -100,6 +100,28 @@ describe("GoalsRepository", () => {
     });
   });
 
+  describe("findInboxByUserId", () => {
+    it("should return the user's Inbox goal when present", async () => {
+      const inbox = { ...mockGoal, isInbox: true, title: "Inbox" };
+      const chain = chainMock([inbox], ["from", "where", "limit"]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.findInboxByUserId("user-1");
+
+      expect(result).toEqual(inbox);
+      expect(chain.limit).toHaveBeenCalledWith(1);
+    });
+
+    it("should return null when the user has no Inbox", async () => {
+      const chain = chainMock([], ["from", "where", "limit"]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.findInboxByUserId("user-orphan");
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe("create", () => {
     it("should insert goal and return it", async () => {
       const chain = chainMock([mockGoal], ["values", "returning"]);
