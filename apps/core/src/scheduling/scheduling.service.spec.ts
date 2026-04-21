@@ -198,7 +198,7 @@ describe("SchedulingService", () => {
       );
     });
 
-    it("should include overlap conflicts in the response", async () => {
+    it("should reject and not create when the block overlaps another block", async () => {
       const conflicting = {
         id: 7,
         taskId: 11,
@@ -207,18 +207,33 @@ describe("SchedulingService", () => {
         endTime: new Date("2026-04-16T10:30:00Z"),
       };
       tasksRepo.findById.mockResolvedValue(mockTask as any);
-      schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
       schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
 
-      const result = await service.createBlock(userId, {
-        taskId: 10,
-        startTime: new Date("2026-04-16T09:00:00Z"),
-        endTime: new Date("2026-04-16T10:00:00Z"),
-      });
+      let caught: unknown;
+      try {
+        await service.createBlock(userId, {
+          taskId: 10,
+          startTime: new Date("2026-04-16T09:00:00Z"),
+          endTime: new Date("2026-04-16T10:00:00Z"),
+        });
+      } catch (err) {
+        caught = err;
+      }
 
-      expect(result.conflicts).toHaveLength(1);
-      expect(result.conflicts[0].blockId).toBe(7);
-      expect(result.conflicts[0].taskTitle).toBe("Run");
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught as BadRequestException).getResponse()).toMatchObject({
+        message: "Scheduled block conflicts with existing blocks",
+        conflicts: [
+          {
+            blockId: 7,
+            taskId: 11,
+            taskTitle: "Run",
+            startTime: conflicting.startTime.toISOString(),
+            endTime: conflicting.endTime.toISOString(),
+          },
+        ],
+      });
+      expect(schedulingRepo.createBlock).not.toHaveBeenCalled();
     });
   });
 
@@ -518,7 +533,7 @@ describe("SchedulingService", () => {
       );
     });
 
-    it("should return conflict summaries when overlap found", async () => {
+    it("should reject and not update when a time change overlaps another block", async () => {
       const conflicting = {
         id: 7,
         taskId: 11,
@@ -527,22 +542,31 @@ describe("SchedulingService", () => {
         endTime: new Date("2026-04-16T11:30:00Z"),
       };
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
-      schedulingRepo.updateBlock.mockResolvedValue(updated as any);
       schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
 
-      const result = await service.updateBlock(userId, 1, {
-        endTime: new Date("2026-04-16T11:00:00Z"),
-      });
+      let caught: unknown;
+      try {
+        await service.updateBlock(userId, 1, {
+          endTime: new Date("2026-04-16T11:00:00Z"),
+        });
+      } catch (err) {
+        caught = err;
+      }
 
-      expect(result.conflicts).toEqual([
-        {
-          blockId: 7,
-          taskId: 11,
-          taskTitle: "Run",
-          startTime: conflicting.startTime.toISOString(),
-          endTime: conflicting.endTime.toISOString(),
-        },
-      ]);
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught as BadRequestException).getResponse()).toMatchObject({
+        message: "Scheduled block conflicts with existing blocks",
+        conflicts: [
+          {
+            blockId: 7,
+            taskId: 11,
+            taskTitle: "Run",
+            startTime: conflicting.startTime.toISOString(),
+            endTime: conflicting.endTime.toISOString(),
+          },
+        ],
+      });
+      expect(schedulingRepo.updateBlock).not.toHaveBeenCalled();
       expect(tasksRepo.findById).not.toHaveBeenCalled();
     });
   });
@@ -639,6 +663,43 @@ describe("SchedulingService", () => {
         expect.any(Date),
         [1, 2],
       );
+    });
+
+    it("should reject and not shift when a shifted block overlaps an unshifted block", async () => {
+      const conflicting = {
+        id: 7,
+        taskId: 11,
+        taskTitle: "Run",
+        startTime: new Date("2026-04-16T09:45:00Z"),
+        endTime: new Date("2026-04-16T10:15:00Z"),
+      };
+      schedulingRepo.findBlockById.mockResolvedValue(block1 as any);
+      schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
+
+      let caught: unknown;
+      try {
+        await service.shiftBlocks(userId, {
+          blockIds: [1],
+          deltaMinutes: 30,
+        });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught as BadRequestException).getResponse()).toMatchObject({
+        message: "Scheduled block conflicts with existing blocks",
+        conflicts: [
+          {
+            blockId: 7,
+            taskId: 11,
+            taskTitle: "Run",
+            startTime: conflicting.startTime.toISOString(),
+            endTime: conflicting.endTime.toISOString(),
+          },
+        ],
+      });
+      expect(schedulingRepo.shiftBlocks).not.toHaveBeenCalled();
     });
   });
 

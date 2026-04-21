@@ -58,6 +58,14 @@ export type ShiftBlocksInput =
   | { blockIds: number[]; deltaMinutes: number; afterTime?: undefined }
   | { afterTime: Date; deltaMinutes: number; blockIds?: undefined };
 
+type ConflictCandidate = {
+  id: number;
+  taskId: number;
+  taskTitle: string;
+  startTime: Date;
+  endTime: Date;
+};
+
 @Injectable()
 export class SchedulingService {
   constructor(
@@ -87,6 +95,8 @@ export class SchedulingService {
       throw new BadRequestException("Start time must be before end time");
     }
 
+    await this.assertNoConflicts(userId, [{ startTime, endTime }]);
+
     const block = await this.schedulingRepo.createBlock({
       userId,
       taskId: data.taskId,
@@ -95,18 +105,11 @@ export class SchedulingService {
       scheduledBy: data.scheduledBy,
       scheduleRunId: data.scheduleRunId,
     });
-    const rawConflicts = await this.schedulingRepo.findOverlapping(
-      userId,
-      startTime,
-      endTime,
-      [block.id],
-    );
-    const conflicts = this.summarizeConflicts(rawConflicts);
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {
       blockId: block.id,
     });
-    return { block, conflicts };
+    return { block, conflicts: [] };
   }
 
   async bulkCreateBlocks(userId: string, data: CreateBlockInput[]) {
@@ -208,13 +211,7 @@ export class SchedulingService {
   }
 
   private summarizeConflicts(
-    rawConflicts: Array<{
-      id: number;
-      taskId: number;
-      taskTitle: string;
-      startTime: Date;
-      endTime: Date;
-    }>,
+    rawConflicts: ConflictCandidate[],
   ): ConflictSummary[] {
     return rawConflicts.map((c) => ({
       blockId: c.id,
@@ -223,6 +220,32 @@ export class SchedulingService {
       startTime: c.startTime.toISOString(),
       endTime: c.endTime.toISOString(),
     }));
+  }
+
+  private async assertNoConflicts(
+    userId: string,
+    windows: Array<{ startTime: Date; endTime: Date }>,
+    excludeIds: number[] = [],
+  ) {
+    const conflictsById = new Map<number, ConflictCandidate>();
+    for (const window of windows) {
+      const conflicts = await this.schedulingRepo.findOverlapping(
+        userId,
+        window.startTime,
+        window.endTime,
+        excludeIds,
+      );
+      for (const conflict of conflicts) {
+        conflictsById.set(conflict.id, conflict);
+      }
+    }
+
+    if (conflictsById.size === 0) return;
+
+    throw new BadRequestException({
+      message: "Scheduled block conflicts with existing blocks",
+      conflicts: this.summarizeConflicts([...conflictsById.values()]),
+    });
   }
 
   async updateBlock(
@@ -245,19 +268,19 @@ export class SchedulingService {
       throw new BadRequestException("Start time must be before end time");
     }
 
+    if (patch.startTime !== undefined || patch.endTime !== undefined) {
+      await this.assertNoConflicts(
+        userId,
+        [{ startTime: effectiveStart, endTime: effectiveEnd }],
+        [blockId],
+      );
+    }
+
     const updated = await this.schedulingRepo.updateBlock(blockId, patch);
     if (!updated) throw new NotFoundException("Scheduled block not found");
 
-    const rawConflicts = await this.schedulingRepo.findOverlapping(
-      userId,
-      effectiveStart,
-      effectiveEnd,
-      [blockId],
-    );
-    const conflicts = this.summarizeConflicts(rawConflicts);
-
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
-    return { block: updated, conflicts };
+    return { block: updated, conflicts: [] };
   }
 
   async shiftBlocks(userId: string, input: ShiftBlocksInput) {
@@ -273,10 +296,12 @@ export class SchedulingService {
     }
 
     let ids: number[];
+    let blocksToShift: ScheduledBlock[];
     if (hasIds) {
       ids = input.blockIds!;
+      blocksToShift = [];
       for (const id of ids) {
-        await this.verifyBlockOwnership(userId, id);
+        blocksToShift.push(await this.verifyBlockOwnership(userId, id));
       }
     } else {
       const far = new Date("9999-12-31T00:00:00Z");
@@ -286,11 +311,20 @@ export class SchedulingService {
         far,
       );
       ids = blocks.map((b) => b.id);
+      blocksToShift = blocks;
     }
 
     if (ids.length === 0) {
       return { blocks: [], conflicts: [] };
     }
+
+    const shiftedWindows = blocksToShift.map((block) => ({
+      startTime: new Date(
+        block.startTime.getTime() + input.deltaMinutes * 60_000,
+      ),
+      endTime: new Date(block.endTime.getTime() + input.deltaMinutes * 60_000),
+    }));
+    await this.assertNoConflicts(userId, shiftedWindows, ids);
 
     const shifted = await this.schedulingRepo.shiftBlocks(
       ids,
@@ -298,31 +332,9 @@ export class SchedulingService {
     );
     shifted.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
-    let rawConflicts: Array<{
-      id: number;
-      taskId: number;
-      taskTitle: string;
-      startTime: Date;
-      endTime: Date;
-    }> = [];
-    if (shifted.length > 0) {
-      const minStart = shifted[0]!.startTime;
-      const maxEnd = shifted.reduce(
-        (acc, b) => (b.endTime > acc ? b.endTime : acc),
-        shifted[0]!.endTime,
-      );
-      rawConflicts = await this.schedulingRepo.findOverlapping(
-        userId,
-        minStart,
-        maxEnd,
-        ids,
-      );
-    }
-    const conflicts = this.summarizeConflicts(rawConflicts);
-
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});
 
-    return { blocks: shifted, conflicts };
+    return { blocks: shifted, conflicts: [] };
   }
 
   async deleteBlock(userId: string, blockId: number) {
