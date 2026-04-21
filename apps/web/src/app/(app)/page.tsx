@@ -3,7 +3,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { useRealtime } from "@/lib/use-realtime";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
@@ -265,6 +270,7 @@ function useToggleTaskStatus() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["goals"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 }
@@ -854,7 +860,108 @@ function GoalsSection() {
 
 const DAY_HEADERS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
+type ScheduleView = "schedule" | "tasks";
+
 function ScheduleSection() {
+  const [view, setView] = useState<ScheduleView>("schedule");
+
+  return (
+    <div>
+      <ScheduleToggle view={view} onChange={setView} />
+      <AnimatePresence mode="wait" initial={false}>
+        {view === "schedule" ? (
+          <motion.div
+            key="schedule"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.28, ease: easeOutExpo }}
+          >
+            <CalendarView />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="tasks"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.28, ease: easeOutExpo }}
+          >
+            <AllTasksView />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Schedule / All Tasks toggle
+//
+// Two uppercase labels that read as section headers. The sliding underline
+// uses a shared layoutId so the bar animates between the active segments
+// instead of snapping. No pills, no borders, no chrome — typography
+// carries the hierarchy (per the design brief), the bar is one physical
+// affordance.
+// ---------------------------------------------------------------------------
+
+function ScheduleToggle({
+  view,
+  onChange,
+}: {
+  view: ScheduleView;
+  onChange: (v: ScheduleView) => void;
+}) {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <div
+      role="tablist"
+      aria-label="Schedule view"
+      className="flex items-center gap-6 mb-4"
+    >
+      {(
+        [
+          ["schedule", "Schedule"],
+          ["tasks", "All Tasks"],
+        ] as const
+      ).map(([id, label]) => {
+        const active = view === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(id)}
+            className={`relative font-heading text-[0.6875rem] font-medium uppercase py-1 transition-colors duration-200 ${
+              active ? "text-foreground" : "text-muted-foreground hover:text-foreground/75"
+            }`}
+            style={{ letterSpacing: "0.1em" }}
+          >
+            {label}
+            {active && (
+              <motion.span
+                layoutId="schedule-toggle-indicator"
+                className="absolute left-0 right-0 -bottom-[2px] h-[1.5px] rounded-full bg-foreground"
+                transition={
+                  shouldReduceMotion
+                    ? { duration: 0 }
+                    : { duration: 0.32, ease: easeOutExpo }
+                }
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Schedule view (calendar + selected-day detail)
+// ---------------------------------------------------------------------------
+
+function CalendarView() {
   const tomorrow = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -926,12 +1033,9 @@ function ScheduleSection() {
   });
 
   return (
-    <div>
-      <SectionLabel>Schedule</SectionLabel>
-
-      <div className="flex flex-col sm:flex-row gap-6">
-        {/* Day detail — left on desktop, bottom on mobile */}
-        <div className="flex-1 min-w-0 order-2 sm:order-1">
+    <div className="flex flex-col sm:flex-row gap-6">
+      {/* Day detail — left on desktop, bottom on mobile */}
+      <div className="flex-1 min-w-0 order-2 sm:order-1">
           <p className="text-[0.9375rem] text-foreground font-medium mb-0.5">
             {selectedDate.toLocaleDateString("en-US", {
               weekday: "long",
@@ -1137,7 +1241,347 @@ function ScheduleSection() {
               );
             })}
           </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// All Tasks view (infinite scroll)
+//
+// API already orders unscheduled tasks first, then scheduled ascending by
+// earliest block. Client groups them into visual sections: one "Unscheduled"
+// group and one group per calendar day. Group headers carry the hierarchy
+// (per the brief — typography, not containers). Intersection observer on a
+// sentinel triggers the next page.
+// ---------------------------------------------------------------------------
+
+interface AllTaskRow {
+  id: number;
+  goalId: number;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: number;
+  estimatedMinutes: number | null;
+  deadline: string | null;
+  createdAt: string;
+  earliestBlockStart: string | null;
+  goal: { id: number; title: string; color: string | null };
+}
+
+interface TaskGroup {
+  key: string;
+  label: string;
+  rows: AllTaskRow[];
+}
+
+const TASKS_PAGE_SIZE = 30;
+
+function formatGroupDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const todayKey = toDateKey(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowKey = toDateKey(tomorrow);
+  const thisKey = toDateKey(d);
+
+  if (thisKey === todayKey) return "Today";
+  if (thisKey === tomorrowKey) return "Tomorrow";
+
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function groupTasksByDate(rows: AllTaskRow[]): TaskGroup[] {
+  const groups: TaskGroup[] = [];
+  const byKey = new Map<string, TaskGroup>();
+
+  for (const row of rows) {
+    let key: string;
+    let label: string;
+    if (!row.earliestBlockStart) {
+      key = "unscheduled";
+      label = "Unscheduled";
+    } else {
+      const d = new Date(row.earliestBlockStart);
+      key = toDateKey(d);
+      label = formatGroupDate(row.earliestBlockStart);
+    }
+
+    let group = byKey.get(key);
+    if (!group) {
+      group = { key, label, rows: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    group.rows.push(row);
+  }
+
+  return groups;
+}
+
+function formatBlockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function AllTasksView() {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery({
+    queryKey: ["tasks", "all"],
+    queryFn: ({ pageParam }) =>
+      api.tasks.list({ limit: TASKS_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage || lastPage.length < TASKS_PAGE_SIZE) return undefined;
+      return allPages.reduce((sum, p) => sum + p.length, 0);
+    },
+  });
+
+  const rows = useMemo<AllTaskRow[]>(
+    () => (data?.pages ?? []).flat() as AllTaskRow[],
+    [data],
+  );
+  const groups = useMemo(() => groupTasksByDate(rows), [rows]);
+
+  // Infinite-scroll sentinel — fires fetchNextPage when the trailing
+  // marker enters the viewport. Guarded by hasNextPage so we don't spam
+  // the API once the list is exhausted.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !isFetching) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "240px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetching, fetchNextPage]);
+
+  const toggleMutation = useToggleTaskStatus();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-6 text-[0.8125rem] text-muted-foreground">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Loading tasks
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="py-8">
+        <p className="text-[0.9375rem] text-foreground/80 leading-snug max-w-[32ch]">
+          Nothing to work on yet.
+        </p>
+        <p className="text-[0.8125rem] text-muted-foreground mt-1.5 max-w-[40ch]">
+          Ask the assistant to break a goal into tasks, or add them yourself.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {groups.map((group) => (
+        <section key={group.key}>
+          <div
+            className="font-heading text-[0.6875rem] font-medium uppercase text-muted-foreground mb-2"
+            style={{ letterSpacing: "0.1em" }}
+          >
+            {group.label}
+          </div>
+
+          <div className="flex flex-col">
+            {group.rows.map((row) => (
+              <AllTaskRowItem
+                key={row.id}
+                row={row}
+                onToggle={(completed) =>
+                  toggleMutation.mutate({ taskId: row.id, completed })
+                }
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+
+      <div ref={sentinelRef} aria-hidden className="h-1" />
+
+      {isFetchingNextPage && (
+        <div className="flex items-center gap-2 py-3 text-[0.75rem] text-muted-foreground">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Loading more
         </div>
+      )}
+
+      {!hasNextPage && rows.length > TASKS_PAGE_SIZE && (
+        <p className="text-[0.75rem] text-muted-foreground/50 tabular-nums py-2">
+          {rows.length} tasks · end of list
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AllTaskRowItem({
+  row,
+  onToggle,
+}: {
+  row: AllTaskRow;
+  onToggle: (completed: boolean) => void;
+}) {
+  const shouldReduceMotion = useReducedMotion();
+  const isCompleted = row.status === "completed";
+  const goalColor = row.goal.color ?? "oklch(35% 0 270)";
+  const [expanded, setExpanded] = useState(false);
+  const hasDescription = Boolean(row.description);
+  const hasBlock = Boolean(row.earliestBlockStart);
+
+  return (
+    <div
+      onClick={() => onToggle(!isCompleted)}
+      className={`group flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
+        isCompleted ? "opacity-40" : ""
+      }`}
+    >
+      {/* Time / placeholder column */}
+      <div className="w-[4.5rem] flex-shrink-0 flex flex-col text-[0.75rem] leading-[1.35] tabular-nums pt-[1px]">
+        {hasBlock ? (
+          <span style={{ color: "oklch(55% 0.008 270)" }}>
+            {formatBlockTime(row.earliestBlockStart as string)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/40">—</span>
+        )}
+      </div>
+
+      {/* Goal color dot */}
+      <div
+        className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[7px]"
+        style={{ backgroundColor: goalColor }}
+      />
+
+      {/* Checkbox */}
+      <motion.div
+        className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150 mt-[1px]"
+        style={{
+          borderColor: goalColor,
+          backgroundColor: isCompleted ? goalColor : "transparent",
+        }}
+        animate={
+          shouldReduceMotion
+            ? undefined
+            : { scale: isCompleted ? [1, 1.18, 1] : 1 }
+        }
+        transition={{
+          duration: 0.32,
+          ease: easeOutExpo,
+          times: [0, 0.45, 1],
+        }}
+      >
+        <AnimatePresence initial={false}>
+          {isCompleted && (
+            <motion.span
+              key="check"
+              initial={
+                shouldReduceMotion ? false : { scale: 0, opacity: 0 }
+              }
+              animate={{ scale: 1, opacity: 1 }}
+              exit={
+                shouldReduceMotion ? undefined : { scale: 0, opacity: 0 }
+              }
+              transition={{ duration: 0.18, ease: easeOutExpo }}
+              className="flex items-center justify-center"
+            >
+              <Check size={10} strokeWidth={3} className="text-background" />
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Title + goal line */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start gap-2">
+          <span
+            className={`text-[0.9375rem] text-foreground flex-1 leading-snug ${
+              isCompleted ? "line-through" : ""
+            }`}
+          >
+            {row.title}
+          </span>
+          {hasDescription && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }}
+              aria-label={expanded ? "Hide description" : "Show description"}
+              className="flex-shrink-0 w-6 h-6 -mr-1 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card transition-colors duration-150"
+            >
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${
+                  expanded ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className="text-[0.75rem] text-muted-foreground">
+            {row.goal.title}
+          </span>
+          {row.deadline && !hasBlock && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="text-[0.75rem] text-muted-foreground tabular-nums">
+                due{" "}
+                {new Date(row.deadline).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+            </>
+          )}
+        </div>
+
+        <AnimatePresence initial={false}>
+          {expanded && hasDescription && (
+            <motion.p
+              key="description"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: easeOutExpo }}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[0.8125rem] text-muted-foreground mt-1.5 whitespace-pre-wrap leading-relaxed overflow-hidden cursor-text"
+            >
+              {row.description}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
