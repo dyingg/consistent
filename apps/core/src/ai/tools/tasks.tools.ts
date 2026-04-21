@@ -1,5 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import type { GoalsService } from "../../goals/goals.service";
 import type { TasksService } from "../../tasks/tasks.service";
 import { getUserId, safe } from "./context";
 
@@ -62,7 +63,17 @@ const dependencyInput = z.object({
   lagMinutes: z.number().int().optional(),
 });
 
-export function createTaskTools(tasksService: TasksService) {
+export function createTaskTools(
+  tasksService: TasksService,
+  goalsService: GoalsService,
+) {
+  async function resolveGoalId(
+    userId: string,
+    goalId: number | undefined,
+  ): Promise<number> {
+    return goalId ?? (await goalsService.findInboxId(userId));
+  }
+
   const getTasks = createTool({
     id: "get-tasks",
     description: "List tasks for a goal.",
@@ -103,16 +114,24 @@ export function createTaskTools(tasksService: TasksService) {
   const createTask = createTool({
     id: "create-task",
     description:
-      "Create a single task under a goal. Prefer bulk-create-tasks when adding multiple at once.",
-    inputSchema: taskFields.extend({ goalId: z.number() }),
+      "Create a single task. Prefer bulk-create-tasks when adding multiple at once. Omit goalId to place the task in the user's Inbox (use for genuine one-offs not tied to a larger objective).",
+    inputSchema: taskFields.extend({
+      goalId: z
+        .number()
+        .optional()
+        .describe(
+          "The goal this task belongs to. Omit for one-off tasks — they will land in the user's Inbox.",
+        ),
+    }),
     outputSchema: z.any(),
     execute: async (input, context) =>
       safe(async () => {
         const { goalId, ...rest } = input;
+        const userId = getUserId(context);
         return {
           task: await tasksService.create(
-            getUserId(context),
-            goalId,
+            userId,
+            await resolveGoalId(userId, goalId),
             normalizeDates(rest),
           ),
         };
@@ -122,20 +141,30 @@ export function createTaskTools(tasksService: TasksService) {
   const bulkCreateTasks = createTool({
     id: "bulk-create-tasks",
     description:
-      "Create multiple tasks for a goal in a single transaction, with optional dependency edges referencing tasks by their index in the tasks array.",
+      "Create multiple tasks in a single transaction, with optional dependency edges referencing tasks by their index. Omit goalId to place the batch in the user's Inbox (use when the batch is a set of one-offs, not a goal breakdown).",
     inputSchema: z.object({
-      goalId: z.number(),
+      goalId: z
+        .number()
+        .optional()
+        .describe(
+          "The goal this batch belongs to. Omit for one-off batches — they will land in the user's Inbox.",
+        ),
       tasks: z.array(taskFields),
       dependencies: z.array(dependencyInput).optional(),
     }),
     outputSchema: z.any(),
     execute: async (input, context) =>
-      safe(async () =>
-        tasksService.bulkCreate(getUserId(context), input.goalId, {
-          tasks: input.tasks.map((t) => normalizeDates(t)),
-          dependencies: input.dependencies,
-        }),
-      ),
+      safe(async () => {
+        const userId = getUserId(context);
+        return tasksService.bulkCreate(
+          userId,
+          await resolveGoalId(userId, input.goalId),
+          {
+            tasks: input.tasks.map((t) => normalizeDates(t)),
+            dependencies: input.dependencies,
+          },
+        );
+      }),
   });
 
   const updateTask = createTool({

@@ -14,4 +14,17 @@ export const auth = betterAuth({
   trustedOrigins: process.env.WEB_ORIGIN
     ? [process.env.WEB_ORIGIN]
     : ["http://localhost:3000"],
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user, _context) => {
+          await db.insert(schema.goals).values({
+            userId: user.id,
+            title: "Inbox",
+            isInbox: true,
+          });
+        },
+      },
+    },
+  },
 });

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as schema from "./schema/index.js";
 
 const {
@@ -21,13 +21,15 @@ async function seed() {
 
   console.log("Seeding database...\n");
 
-  // Clean up existing seed data (reverse FK order)
+  // Clean up existing seed data (reverse FK order). Preserve Inbox goals —
+  // the delete-protect trigger rejects them while their owning user exists,
+  // and they're the permanent per-user catch-all we don't want to drop here.
   console.log("Cleaning up existing data...");
   await db.delete(scheduledBlocks);
   await db.delete(scheduleRuns);
   await db.delete(taskDependencies);
   await db.delete(tasks);
-  await db.delete(goals);
+  await db.delete(goals).where(eq(goals.isInbox, false));
   // Don't delete auth users — they may have sessions
 
   // 1. Ensure a seed user exists
@@ -72,6 +74,21 @@ async function seed() {
 
   const userId = seedUser.id;
   console.log(`User: ${userId} (${seedUser.email})`);
+
+  // Ensure the seed user has an Inbox. Direct inserts bypass the Better Auth
+  // databaseHooks that normally create it on signup, and the one-shot backfill
+  // migration ran before this user existed.
+  const existingInbox = await db
+    .select()
+    .from(goals)
+    .where(and(eq(goals.userId, userId), eq(goals.isInbox, true)))
+    .limit(1);
+  if (!existingInbox.length) {
+    await db
+      .insert(goals)
+      .values({ userId, title: "Inbox", isInbox: true });
+    console.log("Inbox goal created for seed user");
+  }
 
   // 2. Create 2 goals with distinct hex colors
   const [goal1] = await db

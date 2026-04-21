@@ -10,7 +10,11 @@
  * Production code in apps/core has the rule at error and is fully clean.
  */
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 
 jest.mock("../db", () => ({
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory cannot reference outer-scope vars; require() is the documented escape
@@ -53,6 +57,7 @@ describe("GoalsService", () => {
           useValue: {
             findByUserId: jest.fn(),
             findById: jest.fn(),
+            findInboxByUserId: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
@@ -116,6 +121,27 @@ describe("GoalsService", () => {
       await expect(
         service.create(userId, { title: "   " }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it.each(["Inbox", "inbox", "INBOX", "  Inbox  "])(
+      "should reject the reserved title %p",
+      async (title) => {
+        await expect(service.create(userId, { title })).rejects.toThrow(
+          BadRequestException,
+        );
+        await expect(service.create(userId, { title })).rejects.toThrow(
+          /reserved title/,
+        );
+        expect(goalsRepo.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should allow titles that merely contain 'inbox'", async () => {
+      goalsRepo.create.mockResolvedValue(mockGoal as any);
+      await service.create(userId, { title: "My Inbox Cleanup" });
+      expect(goalsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "My Inbox Cleanup" }),
+      );
     });
   });
 
@@ -227,6 +253,26 @@ describe("GoalsService", () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it("should reject renaming a non-inbox goal to 'Inbox'", async () => {
+      await expect(
+        service.update(userId, 1, { title: "Inbox" }),
+      ).rejects.toThrow(/reserved title/);
+      expect(goalsRepo.update).not.toHaveBeenCalled();
+    });
+
+    it("should allow renaming the Inbox back to 'Inbox'", async () => {
+      const inbox = { ...mockGoal, isInbox: true, title: "Quick tasks" };
+      goalsRepo.findById.mockResolvedValue(inbox as any);
+      goalsRepo.update.mockResolvedValue({ ...inbox, title: "Inbox" } as any);
+
+      await service.update(userId, 1, { title: "Inbox" });
+
+      expect(goalsRepo.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ title: "Inbox" }),
+      );
+    });
+
     it("should set completedAt when status changes to completed", async () => {
       goalsRepo.update.mockResolvedValue(mockGoal as any);
       const before = Date.now();
@@ -320,6 +366,73 @@ describe("GoalsService", () => {
       goalsRepo.findById.mockResolvedValue(mockGoal as any);
 
       await expect(service.delete(otherUserId, 1)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should throw ForbiddenException when deleting the Inbox goal", async () => {
+      const inbox = { ...mockGoal, isInbox: true };
+      goalsRepo.findById.mockResolvedValue(inbox as any);
+
+      await expect(service.delete(userId, 1)).rejects.toThrow(
+        ForbiddenException,
+      );
+      await expect(service.delete(userId, 1)).rejects.toThrow(
+        "The Inbox goal cannot be deleted",
+      );
+      expect(goalsRepo.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── findInboxId ─────────────────────────────────────────
+
+  describe("findInboxId", () => {
+    it("should return the user's Inbox goal id", async () => {
+      const inbox = { ...mockGoal, id: 42, isInbox: true };
+      goalsRepo.findInboxByUserId.mockResolvedValue(inbox as any);
+
+      const result = await service.findInboxId(userId);
+
+      expect(result).toBe(42);
+      expect(goalsRepo.findInboxByUserId).toHaveBeenCalledWith(userId);
+      expect(goalsRepo.create).not.toHaveBeenCalled();
+    });
+
+    it("should self-heal by creating an Inbox when the user has none", async () => {
+      const created = { ...mockGoal, id: 99, isInbox: true, title: "Inbox" };
+      goalsRepo.findInboxByUserId.mockResolvedValue(null);
+      goalsRepo.create.mockResolvedValue(created as any);
+
+      const result = await service.findInboxId(userId);
+
+      expect(result).toBe(99);
+      expect(goalsRepo.create).toHaveBeenCalledWith({
+        userId,
+        title: "Inbox",
+        isInbox: true,
+      });
+    });
+
+    it("should recover when a concurrent insert wins the race", async () => {
+      const winner = { ...mockGoal, id: 100, isInbox: true, title: "Inbox" };
+      goalsRepo.findInboxByUserId
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(winner as any);
+      goalsRepo.create.mockRejectedValue(
+        new Error("unique constraint violation"),
+      );
+
+      const result = await service.findInboxId(userId);
+
+      expect(result).toBe(100);
+      expect(goalsRepo.findInboxByUserId).toHaveBeenCalledTimes(2);
+    });
+
+    it("should throw NotFoundException when create fails and re-read returns null", async () => {
+      goalsRepo.findInboxByUserId.mockResolvedValue(null);
+      goalsRepo.create.mockRejectedValue(new Error("db down"));
+
+      await expect(service.findInboxId(userId)).rejects.toThrow(
         NotFoundException,
       );
     });

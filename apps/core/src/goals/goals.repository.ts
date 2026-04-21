@@ -29,6 +29,15 @@ export class GoalsRepository {
     return rows.at(0) ?? null;
   }
 
+  async findInboxByUserId(userId: string) {
+    const rows = await this.db
+      .select()
+      .from(goals)
+      .where(and(eq(goals.userId, userId), eq(goals.isInbox, true)))
+      .limit(1);
+    return rows.at(0) ?? null;
+  }
+
   async create(data: typeof goals.$inferInsert) {
     const rows = await this.db.insert(goals).values(data).returning();
     return rows[0]!;

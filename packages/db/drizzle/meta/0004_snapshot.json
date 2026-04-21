@@ -139,8 +139,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "description_context": {
-          "name": "description_context",
+        "context": {
+          "name": "context",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -692,8 +692,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "description_context": {
-          "name": "description_context",
+        "context": {
+          "name": "context",
           "type": "text",
           "primaryKey": false,
           "notNull": false

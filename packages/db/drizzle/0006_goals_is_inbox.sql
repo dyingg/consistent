@@ -1,0 +1,1 @@
+ALTER TABLE "goals" ADD COLUMN "is_inbox" boolean DEFAULT false NOT NULL;

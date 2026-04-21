@@ -9,6 +9,7 @@
  *      but the assertion under test does not care about.
  * Production code in apps/core has the rule at error and is fully clean.
  */
+import type { GoalsService } from "../../goals/goals.service";
 import type { TasksService } from "../../tasks/tasks.service";
 import { createTaskTools } from "./tasks.tools";
 
@@ -31,7 +32,11 @@ describe("task tools", () => {
     bulkDelete: jest.fn(),
   } as unknown as TasksService;
 
-  const tools = createTaskTools(svc);
+  const goalsSvc = {
+    findInboxId: jest.fn(),
+  } as unknown as GoalsService;
+
+  const tools = createTaskTools(svc, goalsSvc);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -64,6 +69,21 @@ describe("task tools", () => {
       title: "T",
       sprintPoints: 3,
     });
+    expect(goalsSvc.findInboxId).not.toHaveBeenCalled();
+  });
+
+  it("create-task falls back to the user's Inbox when goalId is omitted", async () => {
+    (goalsSvc.findInboxId as jest.Mock).mockResolvedValue(42);
+    (svc.create as jest.Mock).mockResolvedValue({ id: 1 });
+    await tools["create-task"].execute!(
+      { title: "One-off", sprintPoints: 1 },
+      mockContext,
+    );
+    expect(goalsSvc.findInboxId).toHaveBeenCalledWith("user-123");
+    expect(svc.create).toHaveBeenCalledWith("user-123", 42, {
+      title: "One-off",
+      sprintPoints: 1,
+    });
   });
 
   it("create-task converts ISO date strings to Date objects", async () => {
@@ -89,6 +109,21 @@ describe("task tools", () => {
     expect(svc.bulkCreate).toHaveBeenCalledWith("user-123", 7, {
       tasks: input.tasks,
       dependencies: input.dependencies,
+    });
+    expect(goalsSvc.findInboxId).not.toHaveBeenCalled();
+  });
+
+  it("bulk-create-tasks falls back to the user's Inbox when goalId is omitted", async () => {
+    (goalsSvc.findInboxId as jest.Mock).mockResolvedValue(99);
+    (svc.bulkCreate as jest.Mock).mockResolvedValue({ tasks: [], edges: [] });
+    await tools["bulk-create-tasks"].execute!(
+      { tasks: [{ title: "A", sprintPoints: 1 }] },
+      mockContext,
+    );
+    expect(goalsSvc.findInboxId).toHaveBeenCalledWith("user-123");
+    expect(svc.bulkCreate).toHaveBeenCalledWith("user-123", 99, {
+      tasks: [{ title: "A", sprintPoints: 1 }],
+      dependencies: undefined,
     });
   });
 

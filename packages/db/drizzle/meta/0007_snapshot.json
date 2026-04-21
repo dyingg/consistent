@@ -1,6 +1,6 @@
 {
-  "id": "1c764c3d-774e-41f5-a7b0-d4a7c826ff0f",
-  "prevId": "e30eb5a5-95c5-4497-8000-aea66e5c8b62",
+  "id": "65fe6b10-773b-48e8-93a2-5b5b98d967c7",
+  "prevId": "39195bd0-6cbc-42b6-bad5-d1f70bab5de0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -185,6 +185,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "is_inbox": {
+          "name": "is_inbox",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
