@@ -223,7 +223,7 @@ pnpm format:check               # Check without writing
 
 - **Never use `COUNT(*)` for goal progress** — read `goals.totalTasks`/`completedTasks` directly
 - **Cycle detection is in the DB trigger**, not application code (TOCTOU-safe under concurrent inserts)
-- **Partial index** `idx_tasks_ready` on `tasks(user_id) WHERE blocker_count = 0 AND status = 'pending'` — used by `findReadyForUser()`
+- **Partial index** `idx_tasks_ready` on `tasks(user_id) WHERE blocker_count = 0 AND status IN ('pending', 'ready')` — used by `findReadyForUser()`
 - Custom migrations (triggers, functions, partial index) are **not auto-regenerated** by `drizzle-kit generate` — edit by hand
 
 ## NestJS Module Architecture
