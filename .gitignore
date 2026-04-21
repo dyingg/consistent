@@ -45,3 +45,6 @@ playwright-report/
 
 # Drizzle
 packages/db/drizzle/meta/_journal.json.bak
+
+# Local dev tools
+.beads/
