@@ -34,24 +34,33 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
       })),
   });
 
-  const createBlock = createTool({
-    id: "create-block",
+  const createBlocks = createTool({
+    id: "create-blocks",
     description:
-      "Schedule a time block for a task. Returns { block, conflicts }; if conflicts is non-empty, surface them before moving on.",
+      "Schedule one or more time blocks in a single call. Pass an array with one entry for a single block or many entries to schedule several tasks at once — prefer this over looping create calls. Returns { blocks, conflicts }; if conflicts is non-empty, surface them before moving on.",
     inputSchema: z.object({
-      taskId: z.number(),
-      startTime: z.string(),
-      endTime: z.string(),
+      blocks: z
+        .array(
+          z.object({
+            taskId: z.number(),
+            startTime: z.string(),
+            endTime: z.string(),
+          }),
+        )
+        .min(1),
     }),
     outputSchema: z.any(),
     execute: async (input, context) =>
       safe(async () =>
-        schedulingService.createBlock(getUserId(context), {
-          taskId: input.taskId,
-          startTime: new Date(input.startTime),
-          endTime: new Date(input.endTime),
-          scheduledBy: "llm",
-        }),
+        schedulingService.bulkCreateBlocks(
+          getUserId(context),
+          input.blocks.map((b) => ({
+            taskId: b.taskId,
+            startTime: new Date(b.startTime),
+            endTime: new Date(b.endTime),
+            scheduledBy: "llm",
+          })),
+        ),
       ),
   });
 
@@ -140,7 +149,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
   return {
     "get-schedule": getSchedule,
     "get-current-block": getCurrentBlock,
-    "create-block": createBlock,
+    "create-blocks": createBlocks,
     "update-block": updateBlock,
     "shift-blocks": shiftBlocks,
     "delete-block": deleteBlock,
