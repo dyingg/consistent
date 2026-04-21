@@ -552,9 +552,8 @@ function TodaySection() {
     },
   });
 
-  const toggleTask = (taskId: number) => {
-    const current = localCompleted[taskId] ?? false;
-    const newState = !current;
+  const toggleTask = (taskId: number, currentlyCompleted: boolean) => {
+    const newState = !currentlyCompleted;
     setLocalCompleted((prev) => ({ ...prev, [taskId]: newState }));
     completeMutation.mutate({ taskId, completed: newState });
   };
@@ -592,7 +591,7 @@ function TodaySection() {
             return (
               <div
                 key={block.id}
-                onClick={() => toggleTask(block.task.id)}
+                onClick={() => toggleTask(block.task.id, isCompleted)}
                 className={`flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
                   isCompleted ? "opacity-40" : ""
                 }`}
