@@ -226,7 +226,7 @@ function NowSection() {
   }, [block]);
 
   if (isLoading) return null;
-  if (!block) return null;
+  if (!block) return <OverdueHero />;
 
   const start = new Date(block.startTime).getTime();
   const end = new Date(block.endTime).getTime();
@@ -307,6 +307,153 @@ function NowSection() {
           transition={{ duration: 0.8, ease: easeOutExpo }}
         />
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Overdue Hero (fallback when Now has no active block)
+// ---------------------------------------------------------------------------
+
+function formatOverdue(ms: number): string {
+  const totalMinutes = Math.floor(ms / 60_000);
+  if (totalMinutes < 1) return "<1m overdue";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m overdue`;
+  if (minutes === 0) return `${hours}h overdue`;
+  return `${hours}h ${minutes}m overdue`;
+}
+
+function OverdueHero() {
+  const today = useMemo(() => new Date(), []);
+  const queryClient = useQueryClient();
+  const [completed, setCompleted] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const { data: todayBlocks = [] } = useQuery({
+    queryKey: ["schedule", "today"],
+    queryFn: () => api.schedule.blocks(startOfDay(today), endOfDay(today)),
+  });
+
+  const overdueBlocks = useMemo(() => {
+    return (todayBlocks as EnrichedBlock[])
+      .filter(
+        (b) =>
+          b.task.status !== "completed" &&
+          new Date(b.endTime).getTime() < nowTick,
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.endTime).getTime() - new Date(b.endTime).getTime(),
+      );
+  }, [todayBlocks, nowTick]);
+
+  const firstId = overdueBlocks[0]?.task.id;
+
+  useEffect(() => {
+    setCompleted(false);
+  }, [firstId]);
+
+  const completeMutation = useMutation({
+    mutationFn: (taskId: number) =>
+      api.tasks.update(taskId, { status: "completed" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schedule", "now"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule", "today"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+
+  if (overdueBlocks.length === 0) return null;
+
+  const first = overdueBlocks[0]!;
+  const goalColor = first.goal.color ?? "oklch(50% 0.15 270)";
+  const overdueMs = nowTick - new Date(first.endTime).getTime();
+  const overdueLabel = formatOverdue(overdueMs);
+  const moreCount = overdueBlocks.length - 1;
+
+  return (
+    <div>
+      <SectionLabel
+        right={`${formatTime(first.startTime)} – ${formatTime(first.endTime)}`}
+      >
+        Overdue
+      </SectionLabel>
+
+      {/* Overdue duration — occupies the Now countdown's slot */}
+      <p
+        className="font-heading text-[3rem] font-light tracking-tight leading-none"
+        style={{
+          fontVariantNumeric: "tabular-nums",
+          color: OVERDUE_COLOR,
+        }}
+      >
+        {overdueLabel}
+      </p>
+
+      {/* Task row — mirrors Now */}
+      <div className="mt-5 flex items-start gap-3.5">
+        <button
+          type="button"
+          onClick={() => {
+            setCompleted(!completed);
+            if (!completed) {
+              completeMutation.mutate(first.task.id);
+            }
+          }}
+          className="mt-0.5 w-[1.375rem] h-[1.375rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-all duration-200"
+          style={{
+            borderColor: goalColor,
+            backgroundColor: completed ? goalColor : "transparent",
+          }}
+        >
+          {completed && (
+            <Check size={12} strokeWidth={2.5} className="text-background" />
+          )}
+        </button>
+
+        <div className="min-w-0">
+          <p
+            className={`text-[1.0625rem] font-medium text-foreground leading-snug transition-all duration-200 ${
+              completed ? "line-through opacity-40" : ""
+            }`}
+          >
+            {first.task.title}
+          </p>
+          <div className="flex items-center gap-1.5 mt-1">
+            <div
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: goalColor }}
+            />
+            <span className="text-[0.8125rem] text-muted-foreground">
+              {first.goal.title}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Fully-expended progress bar */}
+      <div className="mt-6 h-[3px] rounded-full bg-muted overflow-hidden">
+        <motion.div
+          className="h-full rounded-full"
+          style={{ backgroundColor: OVERDUE_COLOR }}
+          initial={{ width: 0 }}
+          animate={{ width: "100%" }}
+          transition={{ duration: 0.8, ease: easeOutExpo }}
+        />
+      </div>
+
+      {moreCount > 0 && (
+        <p className="mt-3 text-[0.75rem] text-muted-foreground tabular-nums">
+          +{moreCount} more overdue
+        </p>
+      )}
     </div>
   );
 }
