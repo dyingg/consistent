@@ -354,10 +354,42 @@ describe("GoalsService", () => {
 
       expect(result).toBe(42);
       expect(goalsRepo.findInboxByUserId).toHaveBeenCalledWith(userId);
+      expect(goalsRepo.create).not.toHaveBeenCalled();
     });
 
-    it("should throw NotFoundException when the user has no Inbox", async () => {
+    it("should self-heal by creating an Inbox when the user has none", async () => {
+      const created = { ...mockGoal, id: 99, isInbox: true, title: "Inbox" };
       goalsRepo.findInboxByUserId.mockResolvedValue(null);
+      goalsRepo.create.mockResolvedValue(created as any);
+
+      const result = await service.findInboxId(userId);
+
+      expect(result).toBe(99);
+      expect(goalsRepo.create).toHaveBeenCalledWith({
+        userId,
+        title: "Inbox",
+        isInbox: true,
+      });
+    });
+
+    it("should recover when a concurrent insert wins the race", async () => {
+      const winner = { ...mockGoal, id: 100, isInbox: true, title: "Inbox" };
+      goalsRepo.findInboxByUserId
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(winner as any);
+      goalsRepo.create.mockRejectedValue(
+        new Error("unique constraint violation"),
+      );
+
+      const result = await service.findInboxId(userId);
+
+      expect(result).toBe(100);
+      expect(goalsRepo.findInboxByUserId).toHaveBeenCalledTimes(2);
+    });
+
+    it("should throw NotFoundException when create fails and re-read returns null", async () => {
+      goalsRepo.findInboxByUserId.mockResolvedValue(null);
+      goalsRepo.create.mockRejectedValue(new Error("db down"));
 
       await expect(service.findInboxId(userId)).rejects.toThrow(
         NotFoundException,

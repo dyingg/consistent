@@ -102,10 +102,26 @@ export class GoalsService {
 
   async findInboxId(userId: string): Promise<number> {
     const inbox = await this.goalsRepo.findInboxByUserId(userId);
-    if (!inbox) {
-      throw new NotFoundException("Inbox goal not found for user");
+    if (inbox) return inbox.id;
+
+    // Self-heal: Better Auth's after-hook runs post-transaction, so a
+    // transient failure there would leave a user with no Inbox. Create one
+    // on demand; the partial unique index rejects any concurrent second
+    // insert, so we re-query and return the winner's row.
+    try {
+      const created = await this.goalsRepo.create({
+        userId,
+        title: "Inbox",
+        isInbox: true,
+      });
+      return created.id;
+    } catch {
+      const reRead = await this.goalsRepo.findInboxByUserId(userId);
+      if (!reRead) {
+        throw new NotFoundException("Inbox goal not found for user");
+      }
+      return reRead.id;
     }
-    return inbox.id;
   }
 
   async getProgress(userId: string, goalId: number) {
