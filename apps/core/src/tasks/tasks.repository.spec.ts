@@ -102,6 +102,28 @@ describe("TasksRepository", () => {
     });
   });
 
+  describe("findByIds", () => {
+    it("should return tasks matching ids", async () => {
+      const tasks = [mockTask, { ...mockTask, id: 2, title: "Task B" }];
+      const chain = chainMock(tasks, ["from", "where"]);
+      db.select.mockReturnValue(chain);
+
+      const result = await repo.findByIds([1, 2]);
+
+      expect(result).toEqual(tasks);
+      expect(db.select).toHaveBeenCalled();
+      expect(chain.from).toHaveBeenCalled();
+      expect(chain.where).toHaveBeenCalled();
+    });
+
+    it("should short-circuit on empty ids without hitting the db", async () => {
+      const result = await repo.findByIds([]);
+
+      expect(result).toEqual([]);
+      expect(db.select).not.toHaveBeenCalled();
+    });
+  });
+
   describe("create", () => {
     it("should insert task and return it", async () => {
       const chain = chainMock([mockTask], ["values", "returning"]);
@@ -165,6 +187,28 @@ describe("TasksRepository", () => {
       const result = await repo.delete(999);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("deleteMany", () => {
+    it("should delete tasks by ids and return deleted rows", async () => {
+      const deletedTasks = [mockTask, { ...mockTask, id: 2, title: "Task B" }];
+      const chain = chainMock(deletedTasks, ["where", "returning"]);
+      db.delete.mockReturnValue(chain);
+
+      const result = await repo.deleteMany([1, 2]);
+
+      expect(result).toEqual(deletedTasks);
+      expect(db.delete).toHaveBeenCalled();
+      expect(chain.where).toHaveBeenCalled();
+      expect(chain.returning).toHaveBeenCalled();
+    });
+
+    it("should short-circuit on empty ids without hitting the db", async () => {
+      const result = await repo.deleteMany([]);
+
+      expect(result).toEqual([]);
+      expect(db.delete).not.toHaveBeenCalled();
     });
   });
 

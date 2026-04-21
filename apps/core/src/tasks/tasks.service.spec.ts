@@ -85,10 +85,12 @@ describe("TasksService", () => {
           provide: TasksRepository,
           useValue: {
             findById: jest.fn(),
+            findByIds: jest.fn(),
             findByGoalId: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
+            deleteMany: jest.fn(),
             findReadyForUser: jest.fn(),
             getGoalDag: jest.fn(),
           },
@@ -682,6 +684,84 @@ describe("TasksService", () => {
       await expect(service.delete(otherUserId, 10)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ── bulkDelete ──────────────────────────────────────────
+
+  describe("bulkDelete", () => {
+    const taskA = { ...mockTask, id: 10, goalId: 1 };
+    const taskB = { ...mockTask, id: 11, goalId: 1 };
+    const taskOtherGoal = { ...mockTask, id: 12, goalId: 2 };
+
+    it("should delete tasks and return ids + count", async () => {
+      tasksRepo.findByIds.mockResolvedValue([taskA, taskB] as any);
+      tasksRepo.deleteMany.mockResolvedValue([taskA, taskB] as any);
+
+      const result = await service.bulkDelete(userId, [10, 11]);
+
+      expect(result).toEqual({ deletedIds: [10, 11], count: 2 });
+      expect(tasksRepo.findByIds).toHaveBeenCalledWith([10, 11]);
+      expect(tasksRepo.deleteMany).toHaveBeenCalledWith([10, 11]);
+    });
+
+    it("should deduplicate repeated ids before querying", async () => {
+      tasksRepo.findByIds.mockResolvedValue([taskA] as any);
+      tasksRepo.deleteMany.mockResolvedValue([taskA] as any);
+
+      await service.bulkDelete(userId, [10, 10, 10]);
+
+      expect(tasksRepo.findByIds).toHaveBeenCalledWith([10]);
+      expect(tasksRepo.deleteMany).toHaveBeenCalledWith([10]);
+    });
+
+    it("should emit TASK_UPDATED per task and GOAL_UPDATED once per distinct goal", async () => {
+      tasksRepo.findByIds.mockResolvedValue([taskA, taskB, taskOtherGoal] as any);
+      tasksRepo.deleteMany.mockResolvedValue([taskA, taskB, taskOtherGoal] as any);
+      const realtime = (service as any).realtime as {
+        broadcastToUser: jest.Mock;
+      };
+
+      await service.bulkDelete(userId, [10, 11, 12]);
+
+      const taskEvents = realtime.broadcastToUser.mock.calls.filter(
+        (c) => c[1] === "task:updated",
+      );
+      const goalEvents = realtime.broadcastToUser.mock.calls.filter(
+        (c) => c[1] === "goal:updated",
+      );
+      expect(taskEvents).toHaveLength(3);
+      // Two distinct goals touched → two goal events, not three.
+      expect(goalEvents).toHaveLength(2);
+      expect(goalEvents.map((c) => c[2].goalId).sort()).toEqual([1, 2]);
+    });
+
+    it("should throw BadRequestException for empty taskIds", async () => {
+      await expect(service.bulkDelete(userId, [])).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.bulkDelete(userId, [])).rejects.toThrow(
+        "At least one taskId is required",
+      );
+    });
+
+    it("should throw NotFoundException when any id is missing (all-or-nothing)", async () => {
+      tasksRepo.findByIds.mockResolvedValue([taskA] as any); // only 1 of 2
+
+      await expect(
+        service.bulkDelete(userId, [10, 999]),
+      ).rejects.toThrow(NotFoundException);
+      expect(tasksRepo.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when any task belongs to another user", async () => {
+      const foreign = { ...mockTask, id: 11, userId: otherUserId };
+      tasksRepo.findByIds.mockResolvedValue([taskA, foreign] as any);
+
+      await expect(
+        service.bulkDelete(userId, [10, 11]),
+      ).rejects.toThrow(NotFoundException);
+      expect(tasksRepo.deleteMany).not.toHaveBeenCalled();
     });
   });
 

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { tasks } from "@consistent/db/schema";
 import { DRIZZLE, type DrizzleDB } from "../db";
 
@@ -18,6 +18,11 @@ export class TasksRepository {
       .where(eq(tasks.id, id))
       .limit(1);
     return rows.at(0) ?? null;
+  }
+
+  async findByIds(ids: number[]) {
+    if (!ids.length) return [];
+    return this.db.select().from(tasks).where(inArray(tasks.id, ids));
   }
 
   async create(data: typeof tasks.$inferInsert) {
@@ -40,6 +45,14 @@ export class TasksRepository {
       .where(eq(tasks.id, id))
       .returning();
     return rows.at(0) ?? null;
+  }
+
+  async deleteMany(ids: number[]) {
+    if (!ids.length) return [];
+    return this.db
+      .delete(tasks)
+      .where(inArray(tasks.id, ids))
+      .returning();
   }
 
   /**

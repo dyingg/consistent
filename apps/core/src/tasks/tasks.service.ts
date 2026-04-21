@@ -233,6 +233,40 @@ export class TasksService {
     return deleted;
   }
 
+  async bulkDelete(userId: string, taskIds: number[]) {
+    if (!taskIds.length) {
+      throw new BadRequestException("At least one taskId is required");
+    }
+
+    const uniqueIds = Array.from(new Set(taskIds));
+    const rows = await this.tasksRepo.findByIds(uniqueIds);
+
+    // All-or-nothing authorization. Use the same message for missing and
+    // foreign-owned so callers cannot enumerate task ids.
+    if (
+      rows.length !== uniqueIds.length ||
+      rows.some((r) => r.userId !== userId)
+    ) {
+      throw new NotFoundException("One or more tasks not found");
+    }
+
+    const deleted = await this.tasksRepo.deleteMany(uniqueIds);
+
+    const affectedGoals = new Set<number>();
+    for (const r of rows) {
+      affectedGoals.add(r.goalId);
+      this.realtime.broadcastToUser(userId, EVENTS.TASK_UPDATED, {
+        taskId: r.id,
+        goalId: r.goalId,
+      });
+    }
+    for (const goalId of affectedGoals) {
+      this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId });
+    }
+
+    return { deletedIds: deleted.map((d) => d.id), count: deleted.length };
+  }
+
   async findReadyForUser(userId: string) {
     return this.tasksRepo.findReadyForUser(userId);
   }

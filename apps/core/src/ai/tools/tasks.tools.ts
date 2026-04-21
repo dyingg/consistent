@@ -189,14 +189,16 @@ export function createTaskTools(tasksService: TasksService) {
 
   const deleteTask = createTool({
     id: "delete-task",
-    description: "Permanently delete a task.",
-    inputSchema: z.object({ taskId: z.number() }),
+    description:
+      "Permanently delete one or more tasks in a single call. All-or-nothing: if any id is missing or not owned by the user, nothing is deleted.",
+    inputSchema: z.object({
+      taskIds: z.array(z.number()).min(1),
+    }),
     outputSchema: z.any(),
     execute: async (input, context) =>
-      safe(async () => {
-        await tasksService.delete(getUserId(context), input.taskId);
-        return { success: true };
-      }),
+      safe(async () =>
+        tasksService.bulkDelete(getUserId(context), input.taskIds),
+      ),
   });
 
   return {

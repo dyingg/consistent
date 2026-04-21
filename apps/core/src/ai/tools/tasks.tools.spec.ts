@@ -28,6 +28,7 @@ describe("task tools", () => {
     bulkCreate: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    bulkDelete: jest.fn(),
   } as unknown as TasksService;
 
   const tools = createTaskTools(svc);
@@ -100,10 +101,26 @@ describe("task tools", () => {
     expect(svc.update).toHaveBeenCalledWith("user-123", 1, { title: "new" });
   });
 
-  it("delete-task calls delete with userId + taskId", async () => {
-    (svc.delete as jest.Mock).mockResolvedValue(undefined);
-    await tools["delete-task"].execute!({ taskId: 1 }, mockContext);
-    expect(svc.delete).toHaveBeenCalledWith("user-123", 1);
+  it("delete-task calls bulkDelete with userId + taskIds", async () => {
+    (svc.bulkDelete as jest.Mock).mockResolvedValue({
+      deletedIds: [1, 2],
+      count: 2,
+    });
+    const res = await tools["delete-task"].execute!(
+      { taskIds: [1, 2] },
+      mockContext,
+    );
+    expect(svc.bulkDelete).toHaveBeenCalledWith("user-123", [1, 2]);
+    expect(res).toEqual({ deletedIds: [1, 2], count: 2 });
+  });
+
+  it("delete-task accepts a single id wrapped in an array", async () => {
+    (svc.bulkDelete as jest.Mock).mockResolvedValue({
+      deletedIds: [42],
+      count: 1,
+    });
+    await tools["delete-task"].execute!({ taskIds: [42] }, mockContext);
+    expect(svc.bulkDelete).toHaveBeenCalledWith("user-123", [42]);
   });
 
   it("returns structured error when service throws", async () => {
