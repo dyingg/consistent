@@ -311,6 +311,16 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 - Socket.IO client (`apps/web/src/lib/socket.ts`) uses `withCredentials: true` for session cookie auth
 - PG LISTEN/NOTIFY and Redis pub/sub are scaffolded but not yet wired for domain events (available for multi-instance scaling)
 
+### Client state: the cache is the only source of truth
+
+The flow above (event → invalidate → refetch → cache update → re-render) **only works if every UI surface reads server data directly from the React Query cache**. Layering component-local `useState` or `Record<id, boolean>` override maps on top of cached data silently breaks realtime: the invalidation updates the cache, but the component ignores it and keeps rendering the stale local copy. The same bug manifests when two components both touch the same task — whichever one layered local state will desync from the other. Page reload "fixes" it because local state resets; cache re-derives from the server.
+
+**Rule**: if a value mirrors server state (task status, goal progress, schedule block fields), it lives only in the query cache. Never mirrored into `useState`.
+
+**When you need optimistic UI**, use TanStack Query's `onMutate` pattern — cancel in-flight refetches, snapshot the cache, write the optimistic value to the cache, return the snapshot for `onError` rollback, invalidate in `onSettled`. Every subscriber of that key sees the optimistic value instantly and realtime events still flow through. Reference: `useToggleTaskStatus` in `apps/web/src/app/(app)/page.tsx`.
+
+**Local state is fine for non-server data**: animation flags (`justTapped`), UI toggles (`isExpanded`), focus indices, hover state, scroll position. Name these so the non-mirror intent is obvious — if you're about to write `useState<boolean>` for a value called `completed` or `taskStatus`, stop and use the cache.
+
 ## API Endpoints
 
 ### Auth (Better Auth — outside `/v1/`)
@@ -422,6 +432,13 @@ Services emit lightweight WebSocket events after mutations. The frontend invalid
 1. Use `useSession()` from `@/lib/auth-client` to check auth
 2. Redirect to `/sign-in` if no session
 
+### New frontend surface that reads or mutates server data
+
+1. Read with `useQuery` under the same key already used elsewhere for the same data (e.g., `["schedule", "today"]`) — React Query dedupes, one network call serves every subscriber
+2. Render directly from query data. **Do not** copy task/goal/schedule fields into `useState` or a `Record<id, boolean>` override map — that parallel store will desync from realtime invalidations and from other components' mutations (see Realtime Architecture › Client state)
+3. For optimistic mutations, use or extend a shared hook that patches the query cache in `onMutate` and invalidates in `onSettled`. Example: `useToggleTaskStatus` in `apps/web/src/app/(app)/page.tsx`
+4. Local `useState` is only for UI-intrinsic state (animation flags, toggles, focus, hover) — never for mirrors of server fields
+
 ## Environment Variables
 
 ### API (`apps/api`)
@@ -486,6 +503,7 @@ The `-- <reason>` is required by the ESLint config. PRs that introduce `any` wit
 - `db:migrate` via turbo may fail if `DATABASE_URL` isn't available — run directly with `env` prefix (see Database commands above)
 - Jest tests for API mock the `../db` barrel to avoid importing ESM-only `@t3-oss/env-core` — see `jest` config in `apps/api/package.json` for `moduleNameMapper` and inline tsconfig
 - Service specs must provide a mock `RealtimeGateway` with `{ broadcastToUser: jest.fn() }` — services inject it for event emission
+- Never shadow cached server state (task status, goal progress, schedule fields) with `useState` or override maps on the web — overlays swallow realtime invalidations and desync across surfaces (see Realtime Architecture › Client state)
 
 ## What's Not Built Yet
 
