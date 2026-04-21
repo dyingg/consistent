@@ -23,9 +23,11 @@ function chainMock(result: unknown, methods: string[]) {
   const chain: Record<string, jest.Mock> = {};
   for (let i = methods.length - 1; i >= 0; i--) {
     const method = methods[i]!;
-    chain[method] = jest.fn().mockReturnValue(
-      i === methods.length - 1 ? Promise.resolve(result) : chain,
-    );
+    chain[method] = jest
+      .fn()
+      .mockReturnValue(
+        i === methods.length - 1 ? Promise.resolve(result) : chain
+      );
   }
   return chain;
 }
@@ -57,10 +59,7 @@ describe("TasksRepository", () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        TasksRepository,
-        { provide: DRIZZLE, useValue: db },
-      ],
+      providers: [TasksRepository, { provide: DRIZZLE, useValue: db }],
     }).compile();
 
     repo = module.get<TasksRepository>(TasksRepository);
@@ -148,7 +147,9 @@ describe("TasksRepository", () => {
       const chain = chainMock([updatedTask], ["set", "where", "returning"]);
       db.update.mockReturnValue(chain);
 
-      const result = await repo.update(1, { title: "Write better tests" } as any);
+      const result = await repo.update(1, {
+        title: "Write better tests",
+      } as any);
 
       expect(result).toEqual(updatedTask);
       expect(db.update).toHaveBeenCalled();
