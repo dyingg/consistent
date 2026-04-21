@@ -1,6 +1,10 @@
 import { scheduledBlocks } from "@consistent/db/schema";
 import { EVENTS } from "@consistent/realtime";
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { TasksRepository } from "../tasks/tasks.repository";
 import { SchedulingRepository } from "./scheduling.repository";
@@ -86,7 +90,7 @@ export class SchedulingService {
   constructor(
     private readonly schedulingRepo: SchedulingRepository,
     private readonly tasksRepo: TasksRepository,
-    private readonly realtime: RealtimeGateway,
+    private readonly realtime: RealtimeGateway
   ) {}
 
   private async verifyBlockOwnership(userId: string, blockId: number) {
@@ -151,7 +155,10 @@ export class SchedulingService {
 
     const taskIds = Array.from(new Set(normalized.map((d) => d.taskId)));
     const ownedTasks = await this.tasksRepo.findByIds(taskIds);
-    if (ownedTasks.length !== taskIds.length || ownedTasks.some((t) => t.userId !== userId)) {
+    if (
+      ownedTasks.length !== taskIds.length ||
+      ownedTasks.some((t) => t.userId !== userId)
+    ) {
       throw new NotFoundException("One or more tasks not found");
     }
     const taskTitles = new Map(ownedTasks.map((t) => [t.id, t.title]));
@@ -198,14 +205,14 @@ export class SchedulingService {
 
   private overlaps(
     left: { startTime: Date; endTime: Date },
-    right: { startTime: Date; endTime: Date },
+    right: { startTime: Date; endTime: Date }
   ) {
     return left.startTime < right.endTime && left.endTime > right.startTime;
   }
 
   private toExistingConflict(
     window: ProposedScheduleWindow,
-    candidate: ConflictCandidate,
+    candidate: ConflictCandidate
   ): ScheduleConflict {
     return {
       inputIndex: window.inputIndex,
@@ -218,14 +225,16 @@ export class SchedulingService {
       attemptedTaskId: window.taskId,
       attemptedStartTime: window.startTime.toISOString(),
       attemptedEndTime: window.endTime.toISOString(),
-      ...(window.blockId === undefined ? {} : { attemptedBlockId: window.blockId }),
+      ...(window.blockId === undefined
+        ? {}
+        : { attemptedBlockId: window.blockId }),
     };
   }
 
   private toCohortConflict(
     window: ProposedScheduleWindow,
     other: ProposedScheduleWindow,
-    taskTitles: Map<number, string>,
+    taskTitles: Map<number, string>
   ): ScheduleConflict {
     return {
       inputIndex: window.inputIndex,
@@ -238,8 +247,12 @@ export class SchedulingService {
       attemptedTaskId: window.taskId,
       attemptedStartTime: window.startTime.toISOString(),
       attemptedEndTime: window.endTime.toISOString(),
-      ...(window.blockId === undefined ? {} : { attemptedBlockId: window.blockId }),
-      ...(other.blockId === undefined ? {} : { otherAttemptedBlockId: other.blockId }),
+      ...(window.blockId === undefined
+        ? {}
+        : { attemptedBlockId: window.blockId }),
+      ...(other.blockId === undefined
+        ? {}
+        : { otherAttemptedBlockId: other.blockId }),
     };
   }
 
@@ -250,22 +263,24 @@ export class SchedulingService {
       excludeIds?: number[];
       includeCohort?: boolean;
       taskTitles?: Map<number, string>;
-    } = {},
+    } = {}
   ): Promise<ScheduleConflict[]> {
     if (windows.length === 0) return [];
 
     const minStart = windows.reduce(
       (acc, window) => (window.startTime < acc ? window.startTime : acc),
-      windows[0]!.startTime,
+      windows[0]!.startTime
     );
     const maxEnd = windows.reduce(
       (acc, window) => (window.endTime > acc ? window.endTime : acc),
-      windows[0]!.endTime,
+      windows[0]!.endTime
     );
-    const candidates =
-      options.excludeIds === undefined
-        ? await this.schedulingRepo.findOverlapping(userId, minStart, maxEnd)
-        : await this.schedulingRepo.findOverlapping(userId, minStart, maxEnd, options.excludeIds);
+    const candidates = await this.schedulingRepo.findOverlapping(
+      userId,
+      minStart,
+      maxEnd,
+      options.excludeIds
+    );
 
     const conflicts: ScheduleConflict[] = [];
     for (const window of windows) {
@@ -278,7 +293,13 @@ export class SchedulingService {
       for (const other of windows) {
         if (other.inputIndex <= window.inputIndex) continue;
         if (this.overlaps(window, other)) {
-          conflicts.push(this.toCohortConflict(window, other, options.taskTitles ?? new Map()));
+          conflicts.push(
+            this.toCohortConflict(
+              window,
+              other,
+              options.taskTitles ?? new Map()
+            )
+          );
         }
       }
     }
@@ -298,7 +319,7 @@ export class SchedulingService {
   async updateBlock(
     userId: string,
     blockId: number,
-    patch: UpdateBlockPatch,
+    patch: UpdateBlockPatch
   ): Promise<{ block: ScheduledBlock; conflicts: ConflictSummary[] }> {
     const existing = await this.verifyBlockOwnership(userId, blockId);
 
@@ -327,7 +348,7 @@ export class SchedulingService {
             endTime: effectiveEnd,
           },
         ],
-        { excludeIds: [blockId] },
+        { excludeIds: [blockId] }
       );
       this.throwIfConflicts(conflicts);
     }
@@ -343,7 +364,9 @@ export class SchedulingService {
     const hasIds = Array.isArray(input.blockIds) && input.blockIds.length > 0;
     const hasAfter = input.afterTime instanceof Date;
     if (hasIds === hasAfter) {
-      throw new BadRequestException("Provide exactly one of blockIds or afterTime");
+      throw new BadRequestException(
+        "Provide exactly one of blockIds or afterTime"
+      );
     }
     if (!input.deltaMinutes) {
       throw new BadRequestException("deltaMinutes must be non-zero");
@@ -359,7 +382,11 @@ export class SchedulingService {
       }
     } else {
       const far = new Date("9999-12-31T00:00:00Z");
-      const blocks = await this.schedulingRepo.getBlocksForRange(userId, input.afterTime!, far);
+      const blocks = await this.schedulingRepo.getBlocksForRange(
+        userId,
+        input.afterTime!,
+        far
+      );
       ids = blocks.map((b) => b.id);
       blocksToShift = blocks;
     }
@@ -372,15 +399,24 @@ export class SchedulingService {
       inputIndex,
       blockId: block.id,
       taskId: block.taskId,
-      startTime: new Date(block.startTime.getTime() + input.deltaMinutes * 60_000),
+      startTime: new Date(
+        block.startTime.getTime() + input.deltaMinutes * 60_000
+      ),
       endTime: new Date(block.endTime.getTime() + input.deltaMinutes * 60_000),
     }));
-    const conflicts = await this.collectScheduleConflicts(userId, shiftedWindows, {
-      excludeIds: ids,
-    });
+    const conflicts = await this.collectScheduleConflicts(
+      userId,
+      shiftedWindows,
+      {
+        excludeIds: ids,
+      }
+    );
     this.throwIfConflicts(conflicts);
 
-    const shifted = await this.schedulingRepo.shiftBlocks(ids, input.deltaMinutes);
+    const shifted = await this.schedulingRepo.shiftBlocks(
+      ids,
+      input.deltaMinutes
+    );
     shifted.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});
