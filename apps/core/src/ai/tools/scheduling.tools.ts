@@ -34,24 +34,33 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
       })),
   });
 
-  const createBlock = createTool({
-    id: "create-block",
+  const createBlocks = createTool({
+    id: "create-blocks",
     description:
-      "Schedule a time block for a task. Returns { block, conflicts }; if conflicts is non-empty, surface them before moving on.",
+      "Schedule one or more time blocks in a single call. Pass an array with one entry for a single block or many entries to schedule several tasks at once — prefer this over looping create calls. All-or-nothing: if ANY block collides with an existing block or with another block in the same call, NOTHING is created and the response is { blocks: [], conflicts: [...] }. Each conflict has inputIndex (which new block is blocked), kind ('existing' or 'cohort'), and the colliding block's task/time. On conflict, tell the user exactly what collides and ask how to adjust, then retry the whole call with revised times.",
     inputSchema: z.object({
-      taskId: z.number(),
-      startTime: z.string(),
-      endTime: z.string(),
+      blocks: z
+        .array(
+          z.object({
+            taskId: z.number(),
+            startTime: z.string(),
+            endTime: z.string(),
+          }),
+        )
+        .min(1),
     }),
     outputSchema: z.any(),
     execute: async (input, context) =>
       safe(async () =>
-        schedulingService.createBlock(getUserId(context), {
-          taskId: input.taskId,
-          startTime: new Date(input.startTime),
-          endTime: new Date(input.endTime),
-          scheduledBy: "llm",
-        }),
+        schedulingService.bulkCreateBlocks(
+          getUserId(context),
+          input.blocks.map((b) => ({
+            taskId: b.taskId,
+            startTime: new Date(b.startTime),
+            endTime: new Date(b.endTime),
+            scheduledBy: "llm",
+          })),
+        ),
       ),
   });
 
@@ -140,7 +149,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
   return {
     "get-schedule": getSchedule,
     "get-current-block": getCurrentBlock,
-    "create-block": createBlock,
+    "create-blocks": createBlocks,
     "update-block": updateBlock,
     "shift-blocks": shiftBlocks,
     "delete-block": deleteBlock,

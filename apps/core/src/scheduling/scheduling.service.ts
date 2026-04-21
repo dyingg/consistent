@@ -34,6 +34,26 @@ export interface ConflictSummary {
   endTime: string;
 }
 
+export type BulkConflict =
+  | {
+      inputIndex: number;
+      kind: "existing";
+      blockId: number;
+      taskId: number;
+      taskTitle: string;
+      startTime: string;
+      endTime: string;
+    }
+  | {
+      inputIndex: number;
+      kind: "cohort";
+      otherInputIndex: number;
+      taskId: number;
+      taskTitle: string;
+      startTime: string;
+      endTime: string;
+    };
+
 export type ShiftBlocksInput =
   | { blockIds: number[]; deltaMinutes: number; afterTime?: undefined }
   | { afterTime: Date; deltaMinutes: number; blockIds?: undefined };
@@ -81,12 +101,99 @@ export class SchedulingService {
       endTime,
       [block.id],
     );
-    const conflicts = await this.summarizeConflicts(rawConflicts);
+    const conflicts = this.summarizeConflicts(rawConflicts);
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {
       blockId: block.id,
     });
     return { block, conflicts };
+  }
+
+  async bulkCreateBlocks(userId: string, data: CreateBlockInput[]) {
+    if (data.length === 0) {
+      throw new BadRequestException("At least one block is required");
+    }
+
+    const normalized = data.map((d, inputIndex) => {
+      const startTime = new Date(d.startTime);
+      const endTime = new Date(d.endTime);
+      if (startTime >= endTime) {
+        throw new BadRequestException("Start time must be before end time");
+      }
+      return { ...d, startTime, endTime, inputIndex };
+    });
+
+    const taskIds = Array.from(new Set(normalized.map((d) => d.taskId)));
+    const ownedTasks = await this.tasksRepo.findByIds(taskIds);
+    if (
+      ownedTasks.length !== taskIds.length ||
+      ownedTasks.some((t) => t.userId !== userId)
+    ) {
+      throw new NotFoundException("One or more tasks not found");
+    }
+    const taskTitles = new Map(ownedTasks.map((t) => [t.id, t.title]));
+
+    const minStart = normalized.reduce(
+      (acc, d) => (d.startTime < acc ? d.startTime : acc),
+      normalized[0]!.startTime,
+    );
+    const maxEnd = normalized.reduce(
+      (acc, d) => (d.endTime > acc ? d.endTime : acc),
+      normalized[0]!.endTime,
+    );
+    const candidates = await this.schedulingRepo.findOverlapping(
+      userId,
+      minStart,
+      maxEnd,
+    );
+
+    const conflicts: BulkConflict[] = [];
+    for (const b of normalized) {
+      for (const c of candidates) {
+        if (c.startTime < b.endTime && c.endTime > b.startTime) {
+          conflicts.push({
+            inputIndex: b.inputIndex,
+            kind: "existing",
+            blockId: c.id,
+            taskId: c.taskId,
+            taskTitle: c.taskTitle,
+            startTime: c.startTime.toISOString(),
+            endTime: c.endTime.toISOString(),
+          });
+        }
+      }
+      for (const other of normalized) {
+        if (other.inputIndex <= b.inputIndex) continue;
+        if (other.startTime < b.endTime && other.endTime > b.startTime) {
+          conflicts.push({
+            inputIndex: b.inputIndex,
+            kind: "cohort",
+            otherInputIndex: other.inputIndex,
+            taskId: other.taskId,
+            taskTitle: taskTitles.get(other.taskId) ?? "(unknown task)",
+            startTime: other.startTime.toISOString(),
+            endTime: other.endTime.toISOString(),
+          });
+        }
+      }
+    }
+
+    if (conflicts.length > 0) {
+      return { blocks: [], conflicts };
+    }
+
+    const rows = normalized.map((d) => ({
+      userId,
+      taskId: d.taskId,
+      startTime: d.startTime,
+      endTime: d.endTime,
+      scheduledBy: d.scheduledBy,
+      scheduleRunId: d.scheduleRunId,
+    }));
+    const blocks = await this.schedulingRepo.createBlocks(rows);
+
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});
+    return { blocks, conflicts: [] };
   }
 
   async getBlocksForRange(userId: string, start: Date, end: Date) {
@@ -100,26 +207,22 @@ export class SchedulingService {
     return this.schedulingRepo.getCurrentBlock(userId);
   }
 
-  private async summarizeConflicts(
+  private summarizeConflicts(
     rawConflicts: Array<{
       id: number;
       taskId: number;
+      taskTitle: string;
       startTime: Date;
       endTime: Date;
     }>,
-  ): Promise<ConflictSummary[]> {
-    const summaries: ConflictSummary[] = [];
-    for (const c of rawConflicts) {
-      const task = await this.tasksRepo.findById(c.taskId);
-      summaries.push({
-        blockId: c.id,
-        taskId: c.taskId,
-        taskTitle: task?.title ?? "(unknown task)",
-        startTime: c.startTime.toISOString(),
-        endTime: c.endTime.toISOString(),
-      });
-    }
-    return summaries;
+  ): ConflictSummary[] {
+    return rawConflicts.map((c) => ({
+      blockId: c.id,
+      taskId: c.taskId,
+      taskTitle: c.taskTitle,
+      startTime: c.startTime.toISOString(),
+      endTime: c.endTime.toISOString(),
+    }));
   }
 
   async updateBlock(
@@ -151,7 +254,7 @@ export class SchedulingService {
       effectiveEnd,
       [blockId],
     );
-    const conflicts = await this.summarizeConflicts(rawConflicts);
+    const conflicts = this.summarizeConflicts(rawConflicts);
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
     return { block: updated, conflicts };
@@ -198,6 +301,7 @@ export class SchedulingService {
     let rawConflicts: Array<{
       id: number;
       taskId: number;
+      taskTitle: string;
       startTime: Date;
       endTime: Date;
     }> = [];
@@ -214,7 +318,7 @@ export class SchedulingService {
         ids,
       );
     }
-    const conflicts = await this.summarizeConflicts(rawConflicts);
+    const conflicts = this.summarizeConflicts(rawConflicts);
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});
 
