@@ -84,7 +84,7 @@ export function createGoalTools(goalsService: GoalsService) {
   const deleteGoal = createTool({
     id: "delete-goal",
     description:
-      "Permanently delete a goal and all its tasks. Cascades to every task under the goal — use judgment when the target is ambiguous.",
+      "Permanently delete a goal and all its tasks. Cascades to every task under the goal — use judgment when the target is ambiguous. The Inbox goal (isInbox=true) cannot be deleted and will return an error if attempted.",
     inputSchema: z.object({
       goalId: z.number().describe("The goal ID to delete"),
     }),
