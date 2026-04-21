@@ -56,8 +56,9 @@ export class TasksRepository {
   }
 
   /**
-   * Find tasks for a user that have no blockers and are pending.
-   * Hits the partial index idx_tasks_ready.
+   * Find tasks for a user that have no blockers and are ready to work on —
+   * either still `pending` or explicitly moved to `ready`. Hits the partial
+   * index idx_tasks_ready.
    */
   async findReadyForUser(userId: string) {
     return this.db
@@ -67,7 +68,7 @@ export class TasksRepository {
         and(
           eq(tasks.userId, userId),
           eq(tasks.blockerCount, 0),
-          eq(tasks.status, "pending"),
+          inArray(tasks.status, ["pending", "ready"]),
         ),
       );
   }

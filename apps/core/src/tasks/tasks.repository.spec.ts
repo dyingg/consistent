@@ -214,7 +214,7 @@ describe("TasksRepository", () => {
   });
 
   describe("findReadyForUser", () => {
-    it("should query with userId, blockerCount=0, status=pending", async () => {
+    it("should query with userId, blockerCount=0, status in (pending, ready)", async () => {
       const readyTasks = [mockTask];
       const chain = chainMock(readyTasks, ["from", "where"]);
       db.select.mockReturnValue(chain);
