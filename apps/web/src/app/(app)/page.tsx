@@ -323,6 +323,7 @@ function TodaySection() {
   const [localCompleted, setLocalCompleted] = useState<Record<number, boolean>>(
     {},
   );
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   const completeMutation = useMutation({
     mutationFn: ({ taskId, completed }: { taskId: number; completed: boolean }) =>
@@ -368,32 +369,39 @@ function TodaySection() {
               localCompleted[block.task.id] ??
               block.task.status === "completed";
             const goalColor = block.goal.color ?? "oklch(35% 0 270)";
+            const isExpanded = expanded[block.id] ?? false;
+            const hasDescription = Boolean(block.task.description);
 
             return (
               <div
                 key={block.id}
                 onClick={() => toggleTask(block.task.id)}
-                className={`flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
+                className={`flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
                   isCompleted ? "opacity-40" : ""
                 }`}
               >
-                {/* Time */}
-                <span
-                  className="text-[0.75rem] w-[4.5rem] flex-shrink-0 tabular-nums"
+                {/* Time (start → end) */}
+                <div
+                  className="w-[4.5rem] flex-shrink-0 flex flex-col leading-tight tabular-nums pt-px"
                   style={{ color: "oklch(40% 0.006 270)" }}
                 >
-                  {formatTime(block.startTime)}
-                </span>
+                  <span className="text-[0.75rem]">
+                    {formatTime(block.startTime)}
+                  </span>
+                  <span className="text-[0.6875rem] opacity-60">
+                    {formatTime(block.endTime)}
+                  </span>
+                </div>
 
                 {/* Color dot */}
                 <div
-                  className="w-[6px] h-[6px] rounded-full flex-shrink-0"
+                  className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[7px]"
                   style={{ backgroundColor: goalColor }}
                 />
 
                 {/* Checkbox */}
                 <div
-                  className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150"
+                  className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150 mt-[1px]"
                   style={{
                     borderColor: goalColor,
                     backgroundColor: isCompleted ? goalColor : "transparent",
@@ -408,14 +416,56 @@ function TodaySection() {
                   )}
                 </div>
 
-                {/* Title */}
-                <span
-                  className={`text-[0.9375rem] text-foreground flex-1 ${
-                    isCompleted ? "line-through" : ""
-                  }`}
-                >
-                  {block.task.title}
-                </span>
+                {/* Title + description */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-2">
+                    <span
+                      className={`text-[0.9375rem] text-foreground flex-1 ${
+                        isCompleted ? "line-through" : ""
+                      }`}
+                    >
+                      {block.task.title}
+                    </span>
+                    {hasDescription && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpanded((prev) => ({
+                            ...prev,
+                            [block.id]: !isExpanded,
+                          }));
+                        }}
+                        aria-label={
+                          isExpanded ? "Hide description" : "Show description"
+                        }
+                        className="flex-shrink-0 w-6 h-6 -mr-1 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card transition-colors duration-150"
+                      >
+                        <ChevronDown
+                          size={14}
+                          className={`transition-transform duration-200 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    )}
+                  </div>
+                  <AnimatePresence initial={false}>
+                    {isExpanded && hasDescription && (
+                      <motion.p
+                        key="description"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: easeOutExpo }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[0.8125rem] text-muted-foreground mt-1.5 whitespace-pre-wrap leading-relaxed overflow-hidden cursor-text"
+                      >
+                        {block.task.description}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             );
           })}
@@ -504,6 +554,7 @@ function ScheduleSection() {
   const [selectedDate, setSelectedDate] = useState(tomorrow);
   const [viewMonth, setViewMonth] = useState(tomorrow.getMonth());
   const [viewYear, setViewYear] = useState(tomorrow.getFullYear());
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   // Compute the range for the visible calendar grid
   const calendarRange = useMemo(() => {
@@ -587,24 +638,70 @@ function ScheduleSection() {
             <div className="flex flex-col gap-2">
               {selectedTasks.map((block: EnrichedBlock) => {
                 const goalColor = block.goal.color ?? "oklch(35% 0 270)";
+                const isExpanded = expanded[block.id] ?? false;
+                const hasDescription = Boolean(block.task.description);
                 return (
-                  <div
-                    key={block.id}
-                    className="flex items-center gap-3 py-1.5"
-                  >
-                    <span
-                      className="text-[0.75rem] w-[4.5rem] flex-shrink-0 tabular-nums"
+                  <div key={block.id} className="flex items-start gap-3 py-1.5">
+                    <div
+                      className="w-[4.5rem] flex-shrink-0 flex flex-col leading-tight tabular-nums pt-px"
                       style={{ color: "oklch(40% 0.006 270)" }}
                     >
-                      {formatTime(block.startTime)}
-                    </span>
+                      <span className="text-[0.75rem]">
+                        {formatTime(block.startTime)}
+                      </span>
+                      <span className="text-[0.6875rem] opacity-60">
+                        {formatTime(block.endTime)}
+                      </span>
+                    </div>
                     <div
-                      className="w-[6px] h-[6px] rounded-full flex-shrink-0"
+                      className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[7px]"
                       style={{ backgroundColor: goalColor }}
                     />
-                    <span className="text-[0.875rem] text-foreground/80">
-                      {block.task.title}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[0.875rem] text-foreground/80 flex-1">
+                          {block.task.title}
+                        </span>
+                        {hasDescription && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpanded((prev) => ({
+                                ...prev,
+                                [block.id]: !isExpanded,
+                              }))
+                            }
+                            aria-label={
+                              isExpanded
+                                ? "Hide description"
+                                : "Show description"
+                            }
+                            className="flex-shrink-0 w-6 h-6 -mr-1 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card transition-colors duration-150"
+                          >
+                            <ChevronDown
+                              size={14}
+                              className={`transition-transform duration-200 ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+                        )}
+                      </div>
+                      <AnimatePresence initial={false}>
+                        {isExpanded && hasDescription && (
+                          <motion.p
+                            key="description"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2, ease: easeOutExpo }}
+                            className="text-[0.8125rem] text-muted-foreground mt-1.5 whitespace-pre-wrap leading-relaxed overflow-hidden"
+                          >
+                            {block.task.description}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 );
               })}
