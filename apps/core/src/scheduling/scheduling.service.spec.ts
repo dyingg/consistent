@@ -224,6 +224,96 @@ describe("SchedulingService", () => {
     });
   });
 
+  // ── bulkCreateBlocks ────────────────────────────────────
+
+  describe("bulkCreateBlocks", () => {
+    it("should insert multiple blocks in one call and return aggregated response", async () => {
+      const task1 = { ...mockTask, id: 10 };
+      const task2 = { ...mockTask, id: 11 };
+      (schedulingRepo as any).createBlocks = jest.fn().mockResolvedValue([
+        {
+          ...mockBlock,
+          id: 1,
+          taskId: 10,
+          startTime: new Date("2026-04-16T09:00:00Z"),
+          endTime: new Date("2026-04-16T10:00:00Z"),
+        },
+        {
+          ...mockBlock,
+          id: 2,
+          taskId: 11,
+          startTime: new Date("2026-04-16T10:00:00Z"),
+          endTime: new Date("2026-04-16T11:00:00Z"),
+        },
+      ]);
+      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([task1, task2]);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+
+      const result = await service.bulkCreateBlocks(userId, [
+        {
+          taskId: 10,
+          startTime: new Date("2026-04-16T09:00:00Z"),
+          endTime: new Date("2026-04-16T10:00:00Z"),
+          scheduledBy: "llm",
+        },
+        {
+          taskId: 11,
+          startTime: new Date("2026-04-16T10:00:00Z"),
+          endTime: new Date("2026-04-16T11:00:00Z"),
+          scheduledBy: "llm",
+        },
+      ]);
+
+      expect(result.blocks).toHaveLength(2);
+      expect(result.conflicts).toEqual([]);
+      expect(schedulingRepo.findOverlapping).toHaveBeenCalledWith(
+        userId,
+        new Date("2026-04-16T09:00:00Z"),
+        new Date("2026-04-16T11:00:00Z"),
+        [1, 2],
+      );
+    });
+
+    it("should throw BadRequestException when given an empty array", async () => {
+      await expect(service.bulkCreateBlocks(userId, [])).rejects.toThrow(
+        "At least one block is required",
+      );
+    });
+
+    it("should throw BadRequestException when any start >= end", async () => {
+      await expect(
+        service.bulkCreateBlocks(userId, [
+          {
+            taskId: 10,
+            startTime: new Date("2026-04-16T10:00:00Z"),
+            endTime: new Date("2026-04-16T09:00:00Z"),
+          },
+        ]),
+      ).rejects.toThrow("Start time must be before end time");
+    });
+
+    it("should throw NotFoundException when any task is not owned", async () => {
+      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([
+        { ...mockTask, id: 10 },
+      ]);
+
+      await expect(
+        service.bulkCreateBlocks(userId, [
+          {
+            taskId: 10,
+            startTime: new Date("2026-04-16T09:00:00Z"),
+            endTime: new Date("2026-04-16T10:00:00Z"),
+          },
+          {
+            taskId: 999,
+            startTime: new Date("2026-04-16T10:00:00Z"),
+            endTime: new Date("2026-04-16T11:00:00Z"),
+          },
+        ]),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   // ── getBlocksForRange ───────────────────────────────────
 
   describe("getBlocksForRange", () => {
