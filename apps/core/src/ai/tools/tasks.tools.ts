@@ -190,7 +190,7 @@ export function createTaskTools(tasksService: TasksService) {
   const deleteTask = createTool({
     id: "delete-task",
     description:
-      "Permanently delete one or more tasks in a single call. Confirm in natural language before calling — deletion is irreversible. All-or-nothing: if any id is missing or not owned by the user, nothing is deleted.",
+      "Permanently delete one or more tasks in a single call. All-or-nothing: if any id is missing or not owned by the user, nothing is deleted.",
     inputSchema: z.object({
       taskIds: z.array(z.number()).min(1),
     }),
