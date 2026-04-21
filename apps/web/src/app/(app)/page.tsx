@@ -811,12 +811,12 @@ function GoalsSection() {
             <div
               key={goal.id}
               title={goal.title}
-              className="flex-shrink-0 w-[136px] rounded-xl p-4"
+              className="flex-shrink-0 w-[180px] rounded-xl p-4"
               style={{
                 border: `1px solid color-mix(in oklch, ${color} 15%, transparent)`,
               }}
             >
-              <span className="text-[0.8125rem] text-foreground/85 truncate block leading-tight">
+              <span className="text-[0.8125rem] text-foreground/85 leading-tight line-clamp-2 min-h-[2.05rem]">
                 {goal.title}
               </span>
 
