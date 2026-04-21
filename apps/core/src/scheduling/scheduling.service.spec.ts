@@ -227,9 +227,22 @@ describe("SchedulingService", () => {
   // ── bulkCreateBlocks ────────────────────────────────────
 
   describe("bulkCreateBlocks", () => {
-    it("should insert multiple blocks in one call and return aggregated response", async () => {
+    const mkInput = (
+      taskId: number,
+      startIso: string,
+      endIso: string,
+    ) => ({
+      taskId,
+      startTime: new Date(startIso),
+      endTime: new Date(endIso),
+      scheduledBy: "llm" as const,
+    });
+
+    it("inserts multiple blocks and emits a schedule event when there are no conflicts", async () => {
       const task1 = { ...mockTask, id: 10 };
       const task2 = { ...mockTask, id: 11 };
+      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([task1, task2]);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
       (schedulingRepo as any).createBlocks = jest.fn().mockResolvedValue([
         {
           ...mockBlock,
@@ -246,22 +259,10 @@ describe("SchedulingService", () => {
           endTime: new Date("2026-04-16T11:00:00Z"),
         },
       ]);
-      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([task1, task2]);
-      schedulingRepo.findOverlapping.mockResolvedValue([]);
 
       const result = await service.bulkCreateBlocks(userId, [
-        {
-          taskId: 10,
-          startTime: new Date("2026-04-16T09:00:00Z"),
-          endTime: new Date("2026-04-16T10:00:00Z"),
-          scheduledBy: "llm",
-        },
-        {
-          taskId: 11,
-          startTime: new Date("2026-04-16T10:00:00Z"),
-          endTime: new Date("2026-04-16T11:00:00Z"),
-          scheduledBy: "llm",
-        },
+        mkInput(10, "2026-04-16T09:00:00Z", "2026-04-16T10:00:00Z"),
+        mkInput(11, "2026-04-16T10:00:00Z", "2026-04-16T11:00:00Z"),
       ]);
 
       expect(result.blocks).toHaveLength(2);
@@ -270,47 +271,129 @@ describe("SchedulingService", () => {
         userId,
         new Date("2026-04-16T09:00:00Z"),
         new Date("2026-04-16T11:00:00Z"),
-        [1, 2],
       );
+      expect((schedulingRepo as any).createBlocks).toHaveBeenCalled();
     });
 
-    it("should throw BadRequestException when given an empty array", async () => {
+    it("throws BadRequestException when given an empty array", async () => {
       await expect(service.bulkCreateBlocks(userId, [])).rejects.toThrow(
         "At least one block is required",
       );
     });
 
-    it("should throw BadRequestException when any start >= end", async () => {
+    it("throws BadRequestException when any start >= end", async () => {
       await expect(
         service.bulkCreateBlocks(userId, [
-          {
-            taskId: 10,
-            startTime: new Date("2026-04-16T10:00:00Z"),
-            endTime: new Date("2026-04-16T09:00:00Z"),
-          },
+          mkInput(10, "2026-04-16T10:00:00Z", "2026-04-16T09:00:00Z"),
         ]),
       ).rejects.toThrow("Start time must be before end time");
     });
 
-    it("should throw NotFoundException when any task is not owned", async () => {
+    it("throws NotFoundException when any task is not owned", async () => {
       (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([
         { ...mockTask, id: 10 },
       ]);
 
       await expect(
         service.bulkCreateBlocks(userId, [
-          {
-            taskId: 10,
-            startTime: new Date("2026-04-16T09:00:00Z"),
-            endTime: new Date("2026-04-16T10:00:00Z"),
-          },
-          {
-            taskId: 999,
-            startTime: new Date("2026-04-16T10:00:00Z"),
-            endTime: new Date("2026-04-16T11:00:00Z"),
-          },
+          mkInput(10, "2026-04-16T09:00:00Z", "2026-04-16T10:00:00Z"),
+          mkInput(999, "2026-04-16T10:00:00Z", "2026-04-16T11:00:00Z"),
         ]),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("rejects all blocks when any collides with an existing block (all-or-nothing)", async () => {
+      const task1 = { ...mockTask, id: 10 };
+      const task2 = { ...mockTask, id: 11 };
+      const existing = {
+        ...mockBlock,
+        id: 7,
+        taskId: 22,
+        startTime: new Date("2026-04-16T09:30:00Z"),
+        endTime: new Date("2026-04-16T10:30:00Z"),
+      };
+      (tasksRepo as any).findByIds = jest
+        .fn()
+        .mockImplementationOnce(async () => [task1, task2])
+        .mockImplementationOnce(async () => [
+          { ...mockTask, id: 22, title: "Existing" },
+        ]);
+      schedulingRepo.findOverlapping.mockResolvedValue([existing] as any);
+      (schedulingRepo as any).createBlocks = jest.fn();
+
+      const result = await service.bulkCreateBlocks(userId, [
+        mkInput(10, "2026-04-16T09:00:00Z", "2026-04-16T10:00:00Z"),
+        mkInput(11, "2026-04-16T13:00:00Z", "2026-04-16T14:00:00Z"),
+      ]);
+
+      expect(result.blocks).toEqual([]);
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0]).toMatchObject({
+        inputIndex: 0,
+        kind: "existing",
+        blockId: 7,
+        taskTitle: "Existing",
+      });
+      expect((schedulingRepo as any).createBlocks).not.toHaveBeenCalled();
+    });
+
+    it("rejects all blocks when two cohort entries overlap each other", async () => {
+      (tasksRepo as any).findByIds = jest
+        .fn()
+        .mockResolvedValue([{ ...mockTask, id: 10 }, { ...mockTask, id: 11, title: "Two" }]);
+      schedulingRepo.findOverlapping.mockResolvedValue([]);
+      (schedulingRepo as any).createBlocks = jest.fn();
+
+      const result = await service.bulkCreateBlocks(userId, [
+        mkInput(10, "2026-04-16T09:00:00Z", "2026-04-16T10:00:00Z"),
+        mkInput(11, "2026-04-16T09:30:00Z", "2026-04-16T10:30:00Z"),
+      ]);
+
+      expect(result.blocks).toEqual([]);
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0]).toMatchObject({
+        inputIndex: 0,
+        kind: "cohort",
+        otherInputIndex: 1,
+        taskTitle: "Two",
+      });
+      expect((schedulingRepo as any).createBlocks).not.toHaveBeenCalled();
+    });
+
+    it("does not false-positive existing blocks that fall in the gap of a non-contiguous cohort", async () => {
+      // Cohort 9-10 AM + 2-3 PM; existing block 12-1 PM sits in the gap.
+      // Previously the bounding-box overlap query flagged it; now we match per-block.
+      const task1 = { ...mockTask, id: 10 };
+      const task2 = { ...mockTask, id: 11 };
+      const lunchBlock = {
+        ...mockBlock,
+        id: 99,
+        taskId: 33,
+        startTime: new Date("2026-04-16T12:00:00Z"),
+        endTime: new Date("2026-04-16T13:00:00Z"),
+      };
+      (tasksRepo as any).findByIds = jest
+        .fn()
+        .mockImplementationOnce(async () => [task1, task2])
+        .mockImplementationOnce(async () => [
+          { ...mockTask, id: 33, title: "Lunch" },
+        ]);
+      schedulingRepo.findOverlapping.mockResolvedValue([lunchBlock] as any);
+      (schedulingRepo as any).createBlocks = jest
+        .fn()
+        .mockResolvedValue([
+          { ...mockBlock, id: 1, taskId: 10 },
+          { ...mockBlock, id: 2, taskId: 11 },
+        ]);
+
+      const result = await service.bulkCreateBlocks(userId, [
+        mkInput(10, "2026-04-16T09:00:00Z", "2026-04-16T10:00:00Z"),
+        mkInput(11, "2026-04-16T14:00:00Z", "2026-04-16T15:00:00Z"),
+      ]);
+
+      expect(result.conflicts).toEqual([]);
+      expect(result.blocks).toHaveLength(2);
+      expect((schedulingRepo as any).createBlocks).toHaveBeenCalled();
     });
   });
 
