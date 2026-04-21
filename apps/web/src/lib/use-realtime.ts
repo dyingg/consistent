@@ -21,10 +21,12 @@ export function useRealtime() {
     const handleTaskUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ["goals"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     };
 
     const handleScheduleUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     };
 
     socket.on("goal:updated", handleGoalUpdated);
