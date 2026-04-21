@@ -9,6 +9,8 @@
  *      but the assertion under test does not care about.
  * Production code in apps/core has the rule at error and is fully clean.
  */
+
+import { BadRequestException } from "@nestjs/common";
 import type { SchedulingService } from "../../scheduling/scheduling.service";
 import { createSchedulingTools } from "./scheduling.tools";
 
@@ -111,10 +113,7 @@ describe("scheduling tools", () => {
       block: { id: 1 },
       conflicts: [],
     });
-    await tools["update-block"].execute!(
-      { blockId: 1, status: "completed" },
-      mockContext,
-    );
+    await tools["update-block"].execute!({ blockId: 1, status: "completed" }, mockContext);
     expect(svc.updateBlock).toHaveBeenCalledWith("user-123", 1, {
       status: "completed",
     });
@@ -153,16 +152,52 @@ describe("scheduling tools", () => {
     expect(res).toEqual({ error: true, message: "boom" });
   });
 
+  it("preserves structured conflict details when service rejects a schedule update", async () => {
+    const conflicts = [
+      {
+        inputIndex: 0,
+        kind: "existing",
+        blockId: 57,
+        taskId: 67,
+        taskTitle: "Learn idiomatic Go through focused language drills",
+        startTime: "2026-04-22T02:00:00.000Z",
+        endTime: "2026-04-22T07:00:00.000Z",
+        attemptedBlockId: 58,
+        attemptedTaskId: 66,
+        attemptedStartTime: "2026-04-22T02:00:00.000Z",
+        attemptedEndTime: "2026-04-22T05:00:00.000Z",
+      },
+    ];
+    (svc.updateBlock as jest.Mock).mockRejectedValue(
+      new BadRequestException({
+        message: "Scheduled block conflicts with existing blocks",
+        conflicts,
+      }),
+    );
+
+    const res = await tools["update-block"].execute!(
+      {
+        blockId: 58,
+        startTime: "2026-04-22T02:00:00.000Z",
+        endTime: "2026-04-22T05:00:00.000Z",
+      },
+      mockContext,
+    );
+
+    expect(res).toEqual({
+      error: true,
+      message: "Scheduled block conflicts with existing blocks",
+      conflicts,
+    });
+  });
+
   describe("shift-blocks", () => {
     it("forwards explicit blockIds selector", async () => {
       (svc.shiftBlocks as jest.Mock) = jest.fn().mockResolvedValue({
         blocks: [],
         conflicts: [],
       });
-      await tools["shift-blocks"].execute!(
-        { blockIds: [1, 2], deltaMinutes: 30 },
-        mockContext,
-      );
+      await tools["shift-blocks"].execute!({ blockIds: [1, 2], deltaMinutes: 30 }, mockContext);
       expect(svc.shiftBlocks).toHaveBeenCalledWith("user-123", {
         blockIds: [1, 2],
         deltaMinutes: 30,

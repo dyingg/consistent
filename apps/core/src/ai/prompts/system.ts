@@ -86,7 +86,7 @@ create-blocks is all-or-nothing. If any block in the call would collide with an 
 
 update-block is a partial update — send only the fields you want to change (e.g. just endTime to extend a block). Never delete-and-recreate to change a block's time or task; use update-block in a single hop.
 
-update-block and shift-blocks are advisory about conflicts: the write still happens, and the returned conflicts list is a heads-up about what now overlaps. Surface them to the user so they can decide whether to adjust, but don't treat the conflicts as a rollback.
+update-block and shift-blocks reject conflicts before saving. If either tool returns a conflict error, no schedule change was saved. Explain what collided in local time, then retry with a revised time or ask the user how to adjust.
 
 # Shifting the day
 

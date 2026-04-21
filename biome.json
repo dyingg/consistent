@@ -1,8 +1,6 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -13,13 +11,14 @@
     "enabled": false
   },
   "files": {
-    "ignore": [
-      "node_modules",
-      "dist",
-      ".next",
-      "drizzle",
-      "*.config.ts",
-      "*.config.mjs"
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/.next",
+      "!**/drizzle",
+      "!**/*.config.ts",
+      "!**/*.config.mjs"
     ]
   }
 }
