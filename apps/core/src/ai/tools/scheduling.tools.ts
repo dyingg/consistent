@@ -6,8 +6,7 @@ import { getUserId, safe } from "./context";
 export function createSchedulingTools(schedulingService: SchedulingService) {
   const getSchedule = createTool({
     id: "get-schedule",
-    description:
-      "Get scheduled blocks in a date range (inclusive start, exclusive end).",
+    description: "Get scheduled blocks in a date range (inclusive start, exclusive end).",
     inputSchema: z.object({
       start: z.string().describe("ISO 8601 start timestamp"),
       end: z.string().describe("ISO 8601 end timestamp"),
@@ -70,9 +69,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
       "Partial update on a scheduled block. Any subset of { status, startTime, endTime, taskId } is valid — e.g. send only endTime to extend the block. If the new time overlaps another block, the update is rejected and no schedule change is saved; use the returned conflicts to explain what collided and retry with a different time.",
     inputSchema: z.object({
       blockId: z.number(),
-      status: z
-        .enum(["planned", "confirmed", "completed", "missed", "moved"])
-        .optional(),
+      status: z.enum(["planned", "confirmed", "completed", "missed", "moved"]).optional(),
       startTime: z.string().optional(),
       endTime: z.string().optional(),
       taskId: z.number().optional(),
@@ -83,15 +80,9 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
         const patch: Parameters<SchedulingService["updateBlock"]>[2] = {};
         if (input.status !== undefined) patch.status = input.status;
         if (input.taskId !== undefined) patch.taskId = input.taskId;
-        if (input.startTime !== undefined)
-          patch.startTime = new Date(input.startTime);
-        if (input.endTime !== undefined)
-          patch.endTime = new Date(input.endTime);
-        return schedulingService.updateBlock(
-          getUserId(context),
-          input.blockId,
-          patch,
-        );
+        if (input.startTime !== undefined) patch.startTime = new Date(input.startTime);
+        if (input.endTime !== undefined) patch.endTime = new Date(input.endTime);
+        return schedulingService.updateBlock(getUserId(context), input.blockId, patch);
       }),
   });
 
@@ -104,16 +95,12 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
         deltaMinutes: z
           .number()
           .int()
-          .describe(
-            "Positive shifts later, negative shifts earlier. Must be non-zero.",
-          ),
+          .describe("Positive shifts later, negative shifts earlier. Must be non-zero."),
         blockIds: z.array(z.number()).optional(),
         afterTime: z
           .string()
           .optional()
-          .describe(
-            "ISO 8601. Shifts every block whose startTime >= this instant.",
-          ),
+          .describe("ISO 8601. Shifts every block whose startTime >= this instant."),
       })
       .refine((v) => (v.blockIds ? !v.afterTime : !!v.afterTime), {
         message: "Provide exactly one of blockIds or afterTime",

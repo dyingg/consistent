@@ -18,21 +18,14 @@ export function getUserId(context: ToolContext): string {
   return userId;
 }
 
-type StructuredError = { error: true; message: string } & Record<
-  string,
-  unknown
->;
+type StructuredError = { error: true; message: string } & Record<string, unknown>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
 function hasResponse(value: unknown): value is { getResponse: () => unknown } {
-  return (
-    isRecord(value) &&
-    "getResponse" in value &&
-    typeof value.getResponse === "function"
-  );
+  return isRecord(value) && "getResponse" in value && typeof value.getResponse === "function";
 }
 
 function messageFromResponse(response: unknown, fallback: string) {
@@ -52,9 +45,7 @@ function messageFromResponse(response: unknown, fallback: string) {
  * Wraps a tool body so a thrown Error becomes a `{ error, message }` shape
  * the agent can read instead of a Mastra runtime crash.
  */
-export async function safe<T>(
-  fn: () => Promise<T>,
-): Promise<T | StructuredError> {
+export async function safe<T>(fn: () => Promise<T>): Promise<T | StructuredError> {
   try {
     return await fn();
   } catch (err) {

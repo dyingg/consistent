@@ -9,8 +9,9 @@
  *      but the assertion under test does not care about.
  * Production code in apps/core has the rule at error and is fully clean.
  */
-import type { SchedulingService } from "../../scheduling/scheduling.service";
+
 import { BadRequestException } from "@nestjs/common";
+import type { SchedulingService } from "../../scheduling/scheduling.service";
 import { createSchedulingTools } from "./scheduling.tools";
 
 const mockRequestContext = {
@@ -112,10 +113,7 @@ describe("scheduling tools", () => {
       block: { id: 1 },
       conflicts: [],
     });
-    await tools["update-block"].execute!(
-      { blockId: 1, status: "completed" },
-      mockContext,
-    );
+    await tools["update-block"].execute!({ blockId: 1, status: "completed" }, mockContext);
     expect(svc.updateBlock).toHaveBeenCalledWith("user-123", 1, {
       status: "completed",
     });
@@ -199,10 +197,7 @@ describe("scheduling tools", () => {
         blocks: [],
         conflicts: [],
       });
-      await tools["shift-blocks"].execute!(
-        { blockIds: [1, 2], deltaMinutes: 30 },
-        mockContext,
-      );
+      await tools["shift-blocks"].execute!({ blockIds: [1, 2], deltaMinutes: 30 }, mockContext);
       expect(svc.shiftBlocks).toHaveBeenCalledWith("user-123", {
         blockIds: [1, 2],
         deltaMinutes: 30,

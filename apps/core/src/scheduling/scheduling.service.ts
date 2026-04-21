@@ -1,13 +1,9 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
-import { EVENTS } from "@consistent/realtime";
 import { scheduledBlocks } from "@consistent/db/schema";
-import { SchedulingRepository } from "./scheduling.repository";
-import { TasksRepository } from "../tasks/tasks.repository";
+import { EVENTS } from "@consistent/realtime";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { TasksRepository } from "../tasks/tasks.repository";
+import { SchedulingRepository } from "./scheduling.repository";
 
 type ScheduledBlock = typeof scheduledBlocks.$inferSelect;
 
@@ -155,10 +151,7 @@ export class SchedulingService {
 
     const taskIds = Array.from(new Set(normalized.map((d) => d.taskId)));
     const ownedTasks = await this.tasksRepo.findByIds(taskIds);
-    if (
-      ownedTasks.length !== taskIds.length ||
-      ownedTasks.some((t) => t.userId !== userId)
-    ) {
+    if (ownedTasks.length !== taskIds.length || ownedTasks.some((t) => t.userId !== userId)) {
       throw new NotFoundException("One or more tasks not found");
     }
     const taskTitles = new Map(ownedTasks.map((t) => [t.id, t.title]));
@@ -246,9 +239,7 @@ export class SchedulingService {
       attemptedStartTime: window.startTime.toISOString(),
       attemptedEndTime: window.endTime.toISOString(),
       ...(window.blockId === undefined ? {} : { attemptedBlockId: window.blockId }),
-      ...(other.blockId === undefined
-        ? {}
-        : { otherAttemptedBlockId: other.blockId }),
+      ...(other.blockId === undefined ? {} : { otherAttemptedBlockId: other.blockId }),
     };
   }
 
@@ -274,12 +265,7 @@ export class SchedulingService {
     const candidates =
       options.excludeIds === undefined
         ? await this.schedulingRepo.findOverlapping(userId, minStart, maxEnd)
-        : await this.schedulingRepo.findOverlapping(
-            userId,
-            minStart,
-            maxEnd,
-            options.excludeIds,
-          );
+        : await this.schedulingRepo.findOverlapping(userId, minStart, maxEnd, options.excludeIds);
 
     const conflicts: ScheduleConflict[] = [];
     for (const window of windows) {
@@ -292,13 +278,7 @@ export class SchedulingService {
       for (const other of windows) {
         if (other.inputIndex <= window.inputIndex) continue;
         if (this.overlaps(window, other)) {
-          conflicts.push(
-            this.toCohortConflict(
-              window,
-              other,
-              options.taskTitles ?? new Map(),
-            ),
-          );
+          conflicts.push(this.toCohortConflict(window, other, options.taskTitles ?? new Map()));
         }
       }
     }
@@ -363,9 +343,7 @@ export class SchedulingService {
     const hasIds = Array.isArray(input.blockIds) && input.blockIds.length > 0;
     const hasAfter = input.afterTime instanceof Date;
     if (hasIds === hasAfter) {
-      throw new BadRequestException(
-        "Provide exactly one of blockIds or afterTime",
-      );
+      throw new BadRequestException("Provide exactly one of blockIds or afterTime");
     }
     if (!input.deltaMinutes) {
       throw new BadRequestException("deltaMinutes must be non-zero");
@@ -381,11 +359,7 @@ export class SchedulingService {
       }
     } else {
       const far = new Date("9999-12-31T00:00:00Z");
-      const blocks = await this.schedulingRepo.getBlocksForRange(
-        userId,
-        input.afterTime!,
-        far,
-      );
+      const blocks = await this.schedulingRepo.getBlocksForRange(userId, input.afterTime!, far);
       ids = blocks.map((b) => b.id);
       blocksToShift = blocks;
     }
@@ -398,22 +372,15 @@ export class SchedulingService {
       inputIndex,
       blockId: block.id,
       taskId: block.taskId,
-      startTime: new Date(
-        block.startTime.getTime() + input.deltaMinutes * 60_000,
-      ),
+      startTime: new Date(block.startTime.getTime() + input.deltaMinutes * 60_000),
       endTime: new Date(block.endTime.getTime() + input.deltaMinutes * 60_000),
     }));
-    const conflicts = await this.collectScheduleConflicts(
-      userId,
-      shiftedWindows,
-      { excludeIds: ids },
-    );
+    const conflicts = await this.collectScheduleConflicts(userId, shiftedWindows, {
+      excludeIds: ids,
+    });
     this.throwIfConflicts(conflicts);
 
-    const shifted = await this.schedulingRepo.shiftBlocks(
-      ids,
-      input.deltaMinutes,
-    );
+    const shifted = await this.schedulingRepo.shiftBlocks(ids, input.deltaMinutes);
     shifted.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});

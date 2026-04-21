@@ -9,18 +9,19 @@
  *      but the assertion under test does not care about.
  * Production code in apps/core has the rule at error and is fully clean.
  */
-import { Test, TestingModule } from "@nestjs/testing";
+
 import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
 
 jest.mock("../db", () => ({
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory cannot reference outer-scope vars; require() is the documented escape
   DRIZZLE: require("../db/types").DRIZZLE,
 }));
 
-import { SchedulingService } from "./scheduling.service";
-import { SchedulingRepository } from "./scheduling.repository";
-import { TasksRepository } from "../tasks/tasks.repository";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { TasksRepository } from "../tasks/tasks.repository";
+import { SchedulingRepository } from "./scheduling.repository";
+import { SchedulingService } from "./scheduling.service";
 
 describe("SchedulingService", () => {
   let service: SchedulingService;
@@ -245,11 +246,7 @@ describe("SchedulingService", () => {
   // ── bulkCreateBlocks ────────────────────────────────────
 
   describe("bulkCreateBlocks", () => {
-    const mkInput = (
-      taskId: number,
-      startIso: string,
-      endIso: string,
-    ) => ({
+    const mkInput = (taskId: number, startIso: string, endIso: string) => ({
       taskId,
       startTime: new Date(startIso),
       endTime: new Date(endIso),
@@ -308,9 +305,7 @@ describe("SchedulingService", () => {
     });
 
     it("throws NotFoundException when any task is not owned", async () => {
-      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([
-        { ...mockTask, id: 10 },
-      ]);
+      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([{ ...mockTask, id: 10 }]);
 
       await expect(
         service.bulkCreateBlocks(userId, [
@@ -356,9 +351,10 @@ describe("SchedulingService", () => {
     });
 
     it("rejects all blocks when two cohort entries overlap each other", async () => {
-      (tasksRepo as any).findByIds = jest
-        .fn()
-        .mockResolvedValue([{ ...mockTask, id: 10 }, { ...mockTask, id: 11, title: "Two" }]);
+      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([
+        { ...mockTask, id: 10 },
+        { ...mockTask, id: 11, title: "Two" },
+      ]);
       schedulingRepo.findOverlapping.mockResolvedValue([]);
       (schedulingRepo as any).createBlocks = jest.fn();
 
@@ -396,12 +392,10 @@ describe("SchedulingService", () => {
       };
       (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([task1, task2]);
       schedulingRepo.findOverlapping.mockResolvedValue([lunchBlock] as any);
-      (schedulingRepo as any).createBlocks = jest
-        .fn()
-        .mockResolvedValue([
-          { ...mockBlock, id: 1, taskId: 10 },
-          { ...mockBlock, id: 2, taskId: 11 },
-        ]);
+      (schedulingRepo as any).createBlocks = jest.fn().mockResolvedValue([
+        { ...mockBlock, id: 1, taskId: 10 },
+        { ...mockBlock, id: 2, taskId: 11 },
+      ]);
 
       const result = await service.bulkCreateBlocks(userId, [
         mkInput(10, "2026-04-16T09:00:00Z", "2026-04-16T10:00:00Z"),
@@ -450,12 +444,12 @@ describe("SchedulingService", () => {
     it("should throw BadRequestException when start equals end", async () => {
       const sameDate = new Date("2026-04-16T00:00:00Z");
 
-      await expect(
-        service.getBlocksForRange(userId, sameDate, sameDate),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.getBlocksForRange(userId, sameDate, sameDate),
-      ).rejects.toThrow("Start must be before end");
+      await expect(service.getBlocksForRange(userId, sameDate, sameDate)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.getBlocksForRange(userId, sameDate, sameDate)).rejects.toThrow(
+        "Start must be before end",
+      );
     });
 
     it("should throw BadRequestException when start is after end", async () => {
@@ -504,9 +498,9 @@ describe("SchedulingService", () => {
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
       tasksRepo.findById.mockResolvedValue({ ...mockTask, userId: otherUserId } as any);
 
-      await expect(
-        service.updateBlock(userId, 1, { taskId: 99 }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateBlock(userId, 1, { taskId: 99 })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("should throw BadRequestException when effective start >= end", async () => {
@@ -522,9 +516,9 @@ describe("SchedulingService", () => {
     it("should throw NotFoundException when block not owned", async () => {
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
 
-      await expect(
-        service.updateBlock(otherUserId, 1, { status: "completed" }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateBlock(otherUserId, 1, { status: "completed" })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("should exclude the block itself from overlap check", async () => {
@@ -622,8 +616,16 @@ describe("SchedulingService", () => {
         id === 1 ? (block1 as any) : (block2 as any),
       );
       const shifted = [
-        { ...block1, startTime: new Date("2026-04-16T09:30:00Z"), endTime: new Date("2026-04-16T10:30:00Z") },
-        { ...block2, startTime: new Date("2026-04-16T11:30:00Z"), endTime: new Date("2026-04-16T12:30:00Z") },
+        {
+          ...block1,
+          startTime: new Date("2026-04-16T09:30:00Z"),
+          endTime: new Date("2026-04-16T10:30:00Z"),
+        },
+        {
+          ...block2,
+          startTime: new Date("2026-04-16T11:30:00Z"),
+          endTime: new Date("2026-04-16T12:30:00Z"),
+        },
       ];
       schedulingRepo.shiftBlocks.mockResolvedValue(shifted as any);
       schedulingRepo.findOverlapping.mockResolvedValue([]);
@@ -662,15 +664,15 @@ describe("SchedulingService", () => {
     });
 
     it("should reject when neither selector provided", async () => {
-      await expect(
-        service.shiftBlocks(userId, { deltaMinutes: 10 } as any),
-      ).rejects.toThrow("Provide exactly one of blockIds or afterTime");
+      await expect(service.shiftBlocks(userId, { deltaMinutes: 10 } as any)).rejects.toThrow(
+        "Provide exactly one of blockIds or afterTime",
+      );
     });
 
     it("should reject deltaMinutes of 0", async () => {
-      await expect(
-        service.shiftBlocks(userId, { blockIds: [1], deltaMinutes: 0 }),
-      ).rejects.toThrow("deltaMinutes must be non-zero");
+      await expect(service.shiftBlocks(userId, { blockIds: [1], deltaMinutes: 0 })).rejects.toThrow(
+        "deltaMinutes must be non-zero",
+      );
     });
 
     it("should throw when a blockId is not owned", async () => {
@@ -810,17 +812,13 @@ describe("SchedulingService", () => {
     it("should throw NotFoundException when block does not exist", async () => {
       schedulingRepo.findBlockById.mockResolvedValue(null);
 
-      await expect(service.deleteBlock(userId, 999)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.deleteBlock(userId, 999)).rejects.toThrow(NotFoundException);
     });
 
     it("should throw NotFoundException when block belongs to another user", async () => {
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
 
-      await expect(service.deleteBlock(otherUserId, 1)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.deleteBlock(otherUserId, 1)).rejects.toThrow(NotFoundException);
     });
   });
 });
