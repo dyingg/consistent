@@ -371,13 +371,11 @@ function OverdueHero() {
     },
   });
 
-  if (overdueBlocks.length === 0) return null;
-
-  const first = overdueBlocks[0]!;
-  const goalColor = first.goal.color ?? "oklch(50% 0.15 270)";
-  const overdueMs = nowTick - new Date(first.endTime).getTime();
+  const first = overdueBlocks[0];
+  const goalColor = first?.goal.color ?? "oklch(50% 0.15 270)";
+  const overdueMs = first ? nowTick - new Date(first.endTime).getTime() : 0;
   const overdueLabel = formatOverdue(overdueMs);
-  const moreCount = overdueBlocks.length - 1;
+  const moreCount = Math.max(0, overdueBlocks.length - 1);
 
   const container = shouldReduceMotion
     ? { hidden: { opacity: 1 }, visible: { opacity: 1 } }
@@ -406,96 +404,121 @@ function OverdueHero() {
         },
       };
 
+  const exit = shouldReduceMotion
+    ? { opacity: 0, transition: { duration: 0.15 } }
+    : {
+        opacity: 0,
+        y: -6,
+        scale: 0.985,
+        transition: { duration: 0.3, ease: easeOutExpo },
+      };
+
   return (
-    <motion.div variants={container} initial="hidden" animate="visible">
-      <motion.div variants={item}>
-        <SectionLabel
-          right={`${formatTime(first.startTime)} – ${formatTime(first.endTime)}`}
-        >
-          Overdue
-        </SectionLabel>
-      </motion.div>
-
-      {/* Overdue duration — occupies the Now countdown's slot */}
-      <motion.p
-        variants={item}
-        className="font-heading text-[3rem] font-light tracking-tight leading-none"
-        style={{
-          fontVariantNumeric: "tabular-nums",
-          color: OVERDUE_COLOR,
-        }}
-      >
-        {overdueLabel}
-      </motion.p>
-
-      {/* Task row — mirrors Now */}
-      <motion.div variants={item} className="mt-5 flex items-start gap-3.5">
-        <button
-          type="button"
-          onClick={() => {
-            setCompleted(!completed);
-            if (!completed) {
-              completeMutation.mutate(first.task.id);
-            }
-          }}
-          className="mt-0.5 w-[1.375rem] h-[1.375rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-all duration-200"
-          style={{
-            borderColor: goalColor,
-            backgroundColor: completed ? goalColor : "transparent",
-          }}
-        >
-          {completed && (
-            <Check size={12} strokeWidth={2.5} className="text-background" />
-          )}
-        </button>
-
-        <div className="min-w-0">
-          <p
-            className={`text-[1.0625rem] font-medium text-foreground leading-snug transition-all duration-200 ${
-              completed ? "line-through opacity-40" : ""
-            }`}
-          >
-            {first.task.title}
-          </p>
-          <div className="flex items-center gap-1.5 mt-1">
-            <div
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: goalColor }}
-            />
-            <span className="text-[0.8125rem] text-muted-foreground">
-              {first.goal.title}
-            </span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Fully-expended progress bar */}
-      <motion.div
-        variants={item}
-        className="mt-6 h-[3px] rounded-full bg-muted overflow-hidden"
-      >
+    <AnimatePresence mode="wait">
+      {first && (
         <motion.div
-          className="h-full rounded-full"
-          style={{ backgroundColor: OVERDUE_COLOR }}
-          initial={{ width: 0 }}
-          animate={{ width: "100%" }}
-          transition={{
-            duration: shouldReduceMotion ? 0 : 0.8,
-            delay: shouldReduceMotion ? 0 : 0.35,
-            ease: easeOutExpo,
-          }}
-        />
-      </motion.div>
-
-      {moreCount > 0 && (
-        <motion.p
-          variants={item}
-          className="mt-3 text-[0.75rem] text-muted-foreground tabular-nums"
+          key={first.id}
+          variants={container}
+          initial="hidden"
+          animate="visible"
+          exit={exit}
         >
-          +{moreCount} more overdue
-        </motion.p>
+          <motion.div variants={item}>
+            <SectionLabel
+              right={`${formatTime(first.startTime)} – ${formatTime(first.endTime)}`}
+            >
+              Overdue
+            </SectionLabel>
+          </motion.div>
+
+          {/* Overdue duration — occupies the Now countdown's slot */}
+          <motion.p
+            variants={item}
+            className="font-heading text-[3rem] font-light tracking-tight leading-none"
+            style={{
+              fontVariantNumeric: "tabular-nums",
+              color: OVERDUE_COLOR,
+            }}
+          >
+            {overdueLabel}
+          </motion.p>
+
+          {/* Task row — mirrors Now */}
+          <motion.div variants={item} className="mt-5 flex items-start gap-3.5">
+            <button
+              type="button"
+              disabled={completed}
+              onClick={() => {
+                if (completed) return;
+                setCompleted(true);
+                window.setTimeout(() => {
+                  completeMutation.mutate(first.task.id);
+                }, 350);
+              }}
+              className="mt-0.5 w-[1.375rem] h-[1.375rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-all duration-200 disabled:cursor-default"
+              style={{
+                borderColor: goalColor,
+                backgroundColor: completed ? goalColor : "transparent",
+              }}
+            >
+              {completed && (
+                <Check
+                  size={12}
+                  strokeWidth={2.5}
+                  className="text-background"
+                />
+              )}
+            </button>
+
+            <div className="min-w-0">
+              <p
+                className={`text-[1.0625rem] font-medium text-foreground leading-snug transition-all duration-200 ${
+                  completed ? "line-through opacity-40" : ""
+                }`}
+              >
+                {first.task.title}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <div
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: goalColor }}
+                />
+                <span className="text-[0.8125rem] text-muted-foreground">
+                  {first.goal.title}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Fully-expended progress bar */}
+          <motion.div
+            variants={item}
+            className="mt-6 h-[3px] rounded-full bg-muted overflow-hidden"
+          >
+            <motion.div
+              className="h-full rounded-full"
+              style={{ backgroundColor: OVERDUE_COLOR }}
+              initial={{ width: 0 }}
+              animate={{ width: "100%" }}
+              transition={{
+                duration: shouldReduceMotion ? 0 : 0.8,
+                delay: shouldReduceMotion ? 0 : 0.35,
+                ease: easeOutExpo,
+              }}
+            />
+          </motion.div>
+
+          {moreCount > 0 && (
+            <motion.p
+              variants={item}
+              className="mt-3 text-[0.75rem] text-muted-foreground tabular-nums"
+            >
+              +{moreCount} more overdue
+            </motion.p>
+          )}
+        </motion.div>
       )}
-    </motion.div>
+    </AnimatePresence>
   );
 }
 
