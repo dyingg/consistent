@@ -94,8 +94,15 @@ export class SchedulingRepository {
       conditions.push(notInArray(scheduledBlocks.id, excludeIds));
     }
     return this.db
-      .select()
+      .select({
+        id: scheduledBlocks.id,
+        taskId: scheduledBlocks.taskId,
+        startTime: scheduledBlocks.startTime,
+        endTime: scheduledBlocks.endTime,
+        taskTitle: tasks.title,
+      })
       .from(scheduledBlocks)
+      .innerJoin(tasks, eq(scheduledBlocks.taskId, tasks.id))
       .where(and(...conditions));
   }
 

@@ -182,9 +182,9 @@ describe("SchedulingRepository", () => {
   });
 
   describe("findOverlapping", () => {
-    it("should run a select filtered by userId and time range", async () => {
-      const blocks = [mockBlock];
-      const chain = chainMock(blocks, ["from", "where"]);
+    it("should run a select joining tasks to return titles inline", async () => {
+      const enriched = [{ ...mockBlock, taskTitle: "Read" }];
+      const chain = chainMock(enriched, ["from", "innerJoin", "where"]);
       db.select.mockReturnValue(chain);
 
       const result = await repo.findOverlapping(
@@ -193,13 +193,14 @@ describe("SchedulingRepository", () => {
         new Date("2026-04-16T10:00:00Z"),
       );
 
-      expect(result).toEqual(blocks);
+      expect(result).toEqual(enriched);
       expect(db.select).toHaveBeenCalled();
+      expect(chain.innerJoin).toHaveBeenCalled();
       expect(chain.where).toHaveBeenCalled();
     });
 
     it("should accept excludeIds and still return rows", async () => {
-      const chain = chainMock([], ["from", "where"]);
+      const chain = chainMock([], ["from", "innerJoin", "where"]);
       db.select.mockReturnValue(chain);
 
       const result = await repo.findOverlapping(

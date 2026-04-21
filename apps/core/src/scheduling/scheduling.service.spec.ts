@@ -202,14 +202,11 @@ describe("SchedulingService", () => {
       const conflicting = {
         id: 7,
         taskId: 11,
+        taskTitle: "Run",
         startTime: new Date("2026-04-16T09:30:00Z"),
         endTime: new Date("2026-04-16T10:30:00Z"),
       };
-      tasksRepo.findById.mockImplementation(async (id: number) =>
-        id === 11
-          ? ({ ...mockTask, id: 11, title: "Run" } as any)
-          : (mockTask as any),
-      );
+      tasksRepo.findById.mockResolvedValue(mockTask as any);
       schedulingRepo.createBlock.mockResolvedValue(mockBlock as any);
       schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
 
@@ -221,6 +218,7 @@ describe("SchedulingService", () => {
 
       expect(result.conflicts).toHaveLength(1);
       expect(result.conflicts[0].blockId).toBe(7);
+      expect(result.conflicts[0].taskTitle).toBe("Run");
     });
   });
 
@@ -309,15 +307,11 @@ describe("SchedulingService", () => {
         ...mockBlock,
         id: 7,
         taskId: 22,
+        taskTitle: "Existing",
         startTime: new Date("2026-04-16T09:30:00Z"),
         endTime: new Date("2026-04-16T10:30:00Z"),
       };
-      (tasksRepo as any).findByIds = jest
-        .fn()
-        .mockImplementationOnce(async () => [task1, task2])
-        .mockImplementationOnce(async () => [
-          { ...mockTask, id: 22, title: "Existing" },
-        ]);
+      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([task1, task2]);
       schedulingRepo.findOverlapping.mockResolvedValue([existing] as any);
       (schedulingRepo as any).createBlocks = jest.fn();
 
@@ -334,6 +328,7 @@ describe("SchedulingService", () => {
         blockId: 7,
         taskTitle: "Existing",
       });
+      expect((tasksRepo as any).findByIds).toHaveBeenCalledTimes(1);
       expect((schedulingRepo as any).createBlocks).not.toHaveBeenCalled();
     });
 
@@ -369,15 +364,11 @@ describe("SchedulingService", () => {
         ...mockBlock,
         id: 99,
         taskId: 33,
+        taskTitle: "Lunch",
         startTime: new Date("2026-04-16T12:00:00Z"),
         endTime: new Date("2026-04-16T13:00:00Z"),
       };
-      (tasksRepo as any).findByIds = jest
-        .fn()
-        .mockImplementationOnce(async () => [task1, task2])
-        .mockImplementationOnce(async () => [
-          { ...mockTask, id: 33, title: "Lunch" },
-        ]);
+      (tasksRepo as any).findByIds = jest.fn().mockResolvedValue([task1, task2]);
       schedulingRepo.findOverlapping.mockResolvedValue([lunchBlock] as any);
       (schedulingRepo as any).createBlocks = jest
         .fn()
@@ -393,6 +384,7 @@ describe("SchedulingService", () => {
 
       expect(result.conflicts).toEqual([]);
       expect(result.blocks).toHaveLength(2);
+      expect((tasksRepo as any).findByIds).toHaveBeenCalledTimes(1);
       expect((schedulingRepo as any).createBlocks).toHaveBeenCalled();
     });
   });
@@ -530,13 +522,13 @@ describe("SchedulingService", () => {
       const conflicting = {
         id: 7,
         taskId: 11,
+        taskTitle: "Run",
         startTime: new Date("2026-04-16T10:30:00Z"),
         endTime: new Date("2026-04-16T11:30:00Z"),
       };
       schedulingRepo.findBlockById.mockResolvedValue(mockBlock as any);
       schedulingRepo.updateBlock.mockResolvedValue(updated as any);
       schedulingRepo.findOverlapping.mockResolvedValue([conflicting] as any);
-      tasksRepo.findById.mockResolvedValue({ ...mockTask, id: 11, title: "Run" } as any);
 
       const result = await service.updateBlock(userId, 1, {
         endTime: new Date("2026-04-16T11:00:00Z"),
@@ -551,6 +543,7 @@ describe("SchedulingService", () => {
           endTime: conflicting.endTime.toISOString(),
         },
       ]);
+      expect(tasksRepo.findById).not.toHaveBeenCalled();
     });
   });
 

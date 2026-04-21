@@ -101,7 +101,7 @@ export class SchedulingService {
       endTime,
       [block.id],
     );
-    const conflicts = await this.summarizeConflicts(rawConflicts);
+    const conflicts = this.summarizeConflicts(rawConflicts);
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {
       blockId: block.id,
@@ -147,16 +147,6 @@ export class SchedulingService {
       maxEnd,
     );
 
-    const missingTitleIds = Array.from(
-      new Set(
-        candidates.map((c) => c.taskId).filter((id) => !taskTitles.has(id)),
-      ),
-    );
-    if (missingTitleIds.length > 0) {
-      const extra = await this.tasksRepo.findByIds(missingTitleIds);
-      for (const t of extra) taskTitles.set(t.id, t.title);
-    }
-
     const conflicts: BulkConflict[] = [];
     for (const b of normalized) {
       for (const c of candidates) {
@@ -166,7 +156,7 @@ export class SchedulingService {
             kind: "existing",
             blockId: c.id,
             taskId: c.taskId,
-            taskTitle: taskTitles.get(c.taskId) ?? "(unknown task)",
+            taskTitle: c.taskTitle,
             startTime: c.startTime.toISOString(),
             endTime: c.endTime.toISOString(),
           });
@@ -217,26 +207,22 @@ export class SchedulingService {
     return this.schedulingRepo.getCurrentBlock(userId);
   }
 
-  private async summarizeConflicts(
+  private summarizeConflicts(
     rawConflicts: Array<{
       id: number;
       taskId: number;
+      taskTitle: string;
       startTime: Date;
       endTime: Date;
     }>,
-  ): Promise<ConflictSummary[]> {
-    const summaries: ConflictSummary[] = [];
-    for (const c of rawConflicts) {
-      const task = await this.tasksRepo.findById(c.taskId);
-      summaries.push({
-        blockId: c.id,
-        taskId: c.taskId,
-        taskTitle: task?.title ?? "(unknown task)",
-        startTime: c.startTime.toISOString(),
-        endTime: c.endTime.toISOString(),
-      });
-    }
-    return summaries;
+  ): ConflictSummary[] {
+    return rawConflicts.map((c) => ({
+      blockId: c.id,
+      taskId: c.taskId,
+      taskTitle: c.taskTitle,
+      startTime: c.startTime.toISOString(),
+      endTime: c.endTime.toISOString(),
+    }));
   }
 
   async updateBlock(
@@ -268,7 +254,7 @@ export class SchedulingService {
       effectiveEnd,
       [blockId],
     );
-    const conflicts = await this.summarizeConflicts(rawConflicts);
+    const conflicts = this.summarizeConflicts(rawConflicts);
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, { blockId });
     return { block: updated, conflicts };
@@ -315,6 +301,7 @@ export class SchedulingService {
     let rawConflicts: Array<{
       id: number;
       taskId: number;
+      taskTitle: string;
       startTime: Date;
       endTime: Date;
     }> = [];
@@ -331,7 +318,7 @@ export class SchedulingService {
         ids,
       );
     }
-    const conflicts = await this.summarizeConflicts(rawConflicts);
+    const conflicts = this.summarizeConflicts(rawConflicts);
 
     this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});
 
