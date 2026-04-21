@@ -89,6 +89,60 @@ export class SchedulingService {
     return { block, conflicts };
   }
 
+  async bulkCreateBlocks(userId: string, data: CreateBlockInput[]) {
+    if (data.length === 0) {
+      throw new BadRequestException("At least one block is required");
+    }
+
+    const normalized = data.map((d) => {
+      const startTime = new Date(d.startTime);
+      const endTime = new Date(d.endTime);
+      if (startTime >= endTime) {
+        throw new BadRequestException("Start time must be before end time");
+      }
+      return { ...d, startTime, endTime };
+    });
+
+    const taskIds = Array.from(new Set(normalized.map((d) => d.taskId)));
+    const ownedTasks = await this.tasksRepo.findByIds(taskIds);
+    if (
+      ownedTasks.length !== taskIds.length ||
+      ownedTasks.some((t) => t.userId !== userId)
+    ) {
+      throw new NotFoundException("One or more tasks not found");
+    }
+
+    const rows = normalized.map((d) => ({
+      userId,
+      taskId: d.taskId,
+      startTime: d.startTime,
+      endTime: d.endTime,
+      scheduledBy: d.scheduledBy,
+      scheduleRunId: d.scheduleRunId,
+    }));
+    const blocks = await this.schedulingRepo.createBlocks(rows);
+
+    const newIds = blocks.map((b) => b.id);
+    const minStart = blocks.reduce(
+      (acc, b) => (b.startTime < acc ? b.startTime : acc),
+      blocks[0]!.startTime,
+    );
+    const maxEnd = blocks.reduce(
+      (acc, b) => (b.endTime > acc ? b.endTime : acc),
+      blocks[0]!.endTime,
+    );
+    const rawConflicts = await this.schedulingRepo.findOverlapping(
+      userId,
+      minStart,
+      maxEnd,
+      newIds,
+    );
+    const conflicts = await this.summarizeConflicts(rawConflicts);
+
+    this.realtime.broadcastToUser(userId, EVENTS.SCHEDULE_UPDATED, {});
+    return { blocks, conflicts };
+  }
+
   async getBlocksForRange(userId: string, start: Date, end: Date) {
     if (start >= end) {
       throw new BadRequestException("Start must be before end");
