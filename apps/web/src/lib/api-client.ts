@@ -33,6 +33,10 @@ export const api = {
     now: () => apiFetch<any | null>("/v1/schedule/now"),
   },
   tasks: {
+    list: ({ limit, offset }: { limit: number; offset: number }) =>
+      apiFetch<any[]>(
+        `/v1/tasks?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`,
+      ),
     update: (id: number, data: Record<string, unknown>) =>
       apiFetch<any>(`/v1/tasks/${id}`, {
         method: "PATCH",
