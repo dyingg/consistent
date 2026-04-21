@@ -14,7 +14,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
 
-  return res.json();
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 export const api = {
