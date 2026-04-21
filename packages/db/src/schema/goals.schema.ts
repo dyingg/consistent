@@ -1,5 +1,6 @@
 import {
   bigserial,
+  boolean,
   date,
   index,
   integer,
@@ -34,6 +35,7 @@ export const goals = pgTable(
     priority: smallint("priority").notNull().default(3),
     totalTasks: integer("total_tasks").notNull().default(0),
     completedTasks: integer("completed_tasks").notNull().default(0),
+    isInbox: boolean("is_inbox").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

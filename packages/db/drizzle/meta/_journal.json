@@ -43,6 +43,13 @@
       "when": 1776785367388,
       "tag": "0005_broaden_ready_index",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776805517557,
+      "tag": "0006_goals_is_inbox",
+      "breakpoints": true
     }
   ]
 }
