@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import type { AuthUser } from "@consistent/auth";
@@ -62,6 +64,17 @@ export class TasksController {
   @Get("tasks/ready")
   findReady(@CurrentUser() user: AuthUser) {
     return this.tasksService.findReadyForUser(user.id);
+  }
+
+  // All-tasks infinite-scroll view. Unscheduled first, then scheduled
+  // ascending by the earliest scheduled block's start time.
+  @Get("tasks")
+  findAll(
+    @CurrentUser() user: AuthUser,
+    @Query("limit", new DefaultValuePipe(30), ParseIntPipe) limit: number,
+    @Query("offset", new DefaultValuePipe(0), ParseIntPipe) offset: number,
+  ) {
+    return this.tasksService.findAllForUser(user.id, { limit, offset });
   }
 
   @Get("tasks/:id")

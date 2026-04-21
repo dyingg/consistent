@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq, and, inArray, sql } from "drizzle-orm";
-import { tasks } from "@consistent/db/schema";
+import { eq, and, inArray, notInArray, desc, sql } from "drizzle-orm";
+import { goals, scheduledBlocks, tasks } from "@consistent/db/schema";
 import { DRIZZLE, type DrizzleDB } from "../db";
 
 @Injectable()
@@ -53,6 +53,54 @@ export class TasksRepository {
       .delete(tasks)
       .where(inArray(tasks.id, ids))
       .returning();
+  }
+
+  /**
+   * Paginated "all tasks" view, joined with the task's goal and the earliest
+   * scheduled block. Completed and cancelled tasks are excluded. Ordered so
+   * unscheduled tasks (NULL earliest_block) surface first, then scheduled
+   * tasks ascending by their next block — newest-created wins ties.
+   */
+  async findAllForUserPaginated(
+    userId: string,
+    limit: number,
+    offset: number,
+  ) {
+    const earliestBlock = sql<string | null>`(
+      SELECT MIN(${scheduledBlocks.startTime})
+      FROM ${scheduledBlocks}
+      WHERE ${scheduledBlocks.taskId} = ${tasks.id}
+    )`.as("earliest_block");
+
+    return this.db
+      .select({
+        id: tasks.id,
+        goalId: tasks.goalId,
+        title: tasks.title,
+        description: tasks.description,
+        status: tasks.status,
+        priority: tasks.priority,
+        estimatedMinutes: tasks.estimatedMinutes,
+        deadline: tasks.deadline,
+        createdAt: tasks.createdAt,
+        earliestBlockStart: earliestBlock,
+        goal: {
+          id: goals.id,
+          title: goals.title,
+          color: goals.color,
+        },
+      })
+      .from(tasks)
+      .innerJoin(goals, eq(goals.id, tasks.goalId))
+      .where(
+        and(
+          eq(tasks.userId, userId),
+          notInArray(tasks.status, ["completed", "cancelled"]),
+        ),
+      )
+      .orderBy(sql`${earliestBlock} ASC NULLS FIRST`, desc(tasks.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   /**

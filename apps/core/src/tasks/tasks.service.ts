@@ -196,6 +196,19 @@ export class TasksService {
     return this.tasksRepo.findByGoalId(goalId);
   }
 
+  async findAllForUser(
+    userId: string,
+    { limit, offset }: { limit: number; offset: number },
+  ) {
+    const clampedLimit = Math.max(1, Math.min(100, limit));
+    const clampedOffset = Math.max(0, offset);
+    return this.tasksRepo.findAllForUserPaginated(
+      userId,
+      clampedLimit,
+      clampedOffset,
+    );
+  }
+
   async findById(userId: string, taskId: number) {
     return this.verifyTaskOwnership(userId, taskId);
   }
