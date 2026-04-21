@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  TriangleAlert,
 } from "lucide-react";
 import { Coach } from "@/components/coach/coach";
 
@@ -140,6 +141,8 @@ function endOfDay(date: Date): string {
 // ---------------------------------------------------------------------------
 
 const easeOutExpo: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
+const OVERDUE_COLOR = "oklch(62% 0.18 25)";
 
 const containerVariants = {
   hidden: {},
@@ -371,6 +374,8 @@ function TodaySection() {
             const goalColor = block.goal.color ?? "oklch(35% 0 270)";
             const isExpanded = expanded[block.id] ?? false;
             const hasDescription = Boolean(block.task.description);
+            const isOverdue =
+              !isCompleted && new Date(block.endTime).getTime() < Date.now();
 
             return (
               <div
@@ -385,15 +390,25 @@ function TodaySection() {
                   <span style={{ color: "oklch(55% 0.008 270)" }}>
                     {formatTime(block.startTime)}
                   </span>
-                  <span style={{ color: "oklch(40% 0.006 270)" }}>
+                  <span
+                    style={{
+                      color: isOverdue
+                        ? OVERDUE_COLOR
+                        : "oklch(40% 0.006 270)",
+                    }}
+                  >
                     {formatTime(block.endTime)}
                   </span>
                 </div>
 
                 {/* Color dot */}
                 <div
-                  className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[6px]"
-                  style={{ backgroundColor: goalColor }}
+                  className={`w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[6px] ${
+                    isOverdue ? "motion-safe:animate-pulse" : ""
+                  }`}
+                  style={{
+                    backgroundColor: isOverdue ? OVERDUE_COLOR : goalColor,
+                  }}
                 />
 
                 {/* Checkbox */}
@@ -421,6 +436,15 @@ function TodaySection() {
                         isCompleted ? "line-through" : ""
                       }`}
                     >
+                      {isOverdue && (
+                        <TriangleAlert
+                          size={13}
+                          strokeWidth={2.25}
+                          aria-label="Overdue"
+                          className="inline-block align-[-0.125em] mr-1.5"
+                          style={{ color: OVERDUE_COLOR }}
+                        />
+                      )}
                       {block.task.title}
                     </span>
                     {hasDescription && (
@@ -637,23 +661,45 @@ function ScheduleSection() {
                 const goalColor = block.goal.color ?? "oklch(35% 0 270)";
                 const isExpanded = expanded[block.id] ?? false;
                 const hasDescription = Boolean(block.task.description);
+                const isOverdue =
+                  block.task.status !== "completed" &&
+                  new Date(block.endTime).getTime() < Date.now();
                 return (
                   <div key={block.id} className="flex items-start gap-3 py-1.5">
                     <div className="w-[4.5rem] flex-shrink-0 flex flex-col text-[0.75rem] leading-[1.35] tabular-nums">
                       <span style={{ color: "oklch(55% 0.008 270)" }}>
                         {formatTime(block.startTime)}
                       </span>
-                      <span style={{ color: "oklch(40% 0.006 270)" }}>
+                      <span
+                        style={{
+                          color: isOverdue
+                            ? OVERDUE_COLOR
+                            : "oklch(40% 0.006 270)",
+                        }}
+                      >
                         {formatTime(block.endTime)}
                       </span>
                     </div>
                     <div
-                      className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[6px]"
-                      style={{ backgroundColor: goalColor }}
+                      className={`w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[6px] ${
+                        isOverdue ? "motion-safe:animate-pulse" : ""
+                      }`}
+                      style={{
+                        backgroundColor: isOverdue ? OVERDUE_COLOR : goalColor,
+                      }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-2">
                         <span className="text-[0.875rem] text-foreground/80 flex-1">
+                          {isOverdue && (
+                            <TriangleAlert
+                              size={12}
+                              strokeWidth={2.25}
+                              aria-label="Overdue"
+                              className="inline-block align-[-0.125em] mr-1.5"
+                              style={{ color: OVERDUE_COLOR }}
+                            />
+                          )}
                           {block.task.title}
                         </span>
                         {hasDescription && (
