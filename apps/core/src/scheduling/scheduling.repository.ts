@@ -25,6 +25,11 @@ export class SchedulingRepository {
     return rows[0]!;
   }
 
+  async createBlocks(rows: (typeof scheduledBlocks.$inferInsert)[]) {
+    if (rows.length === 0) return [];
+    return this.db.insert(scheduledBlocks).values(rows).returning();
+  }
+
   async getBlocksForRange(userId: string, start: Date, end: Date) {
     return this.db
       .select()
