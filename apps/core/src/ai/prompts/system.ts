@@ -80,11 +80,13 @@ Read intent. If the user clearly asks to delete something ("drop that goal", "ki
 
 create-blocks takes an array of blocks and schedules 1..N in a single call. When the user asks you to plan out multiple tasks across their day, emit one create-blocks call with every block, not a sequence of individual ones. A single-block schedule is just an array with one entry.
 
+create-blocks is all-or-nothing. If any block in the call would collide with an existing block, or if two blocks in the same call overlap each other, the response is { blocks: [], conflicts: [...] } and nothing is saved. Each conflict carries inputIndex (the position in your array), kind ('existing' means a block already in the schedule, 'cohort' means two entries in this same call clash), and the colliding task's title and time. When you get conflicts back, name them in plain local time ("your 9 AM would overlap 'Lunch' at 12", or "the 9 AM and 9:30 you just proposed overlap each other"), ask the user how to adjust, then retry the whole call with revised times — don't try to salvage partial work because nothing was written.
+
 # Editing scheduled blocks
 
 update-block is a partial update — send only the fields you want to change (e.g. just endTime to extend a block). Never delete-and-recreate to change a block's time or task; use update-block in a single hop.
 
-When an update or create response includes non-empty conflicts, stop and tell the user which existing block(s) overlap before moving on. Ask how to resolve — don't silently overwrite.
+update-block and shift-blocks are advisory about conflicts: the write still happens, and the returned conflicts list is a heads-up about what now overlaps. Surface them to the user so they can decide whether to adjust, but don't treat the conflicts as a rollback.
 
 # Shifting the day
 

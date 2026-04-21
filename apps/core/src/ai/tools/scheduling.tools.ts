@@ -37,7 +37,7 @@ export function createSchedulingTools(schedulingService: SchedulingService) {
   const createBlocks = createTool({
     id: "create-blocks",
     description:
-      "Schedule one or more time blocks in a single call. Pass an array with one entry for a single block or many entries to schedule several tasks at once — prefer this over looping create calls. Returns { blocks, conflicts }; if conflicts is non-empty, surface them before moving on.",
+      "Schedule one or more time blocks in a single call. Pass an array with one entry for a single block or many entries to schedule several tasks at once — prefer this over looping create calls. All-or-nothing: if ANY block collides with an existing block or with another block in the same call, NOTHING is created and the response is { blocks: [], conflicts: [...] }. Each conflict has inputIndex (which new block is blocked), kind ('existing' or 'cohort'), and the colliding block's task/time. On conflict, tell the user exactly what collides and ask how to adjust, then retry the whole call with revised times.",
     inputSchema: z.object({
       blocks: z
         .array(
