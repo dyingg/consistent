@@ -17,7 +17,7 @@ export function createTools(
   // keeps each tool's `execute` callable for tests and the agent factory.
   return {
     ...createGoalTools(goalsService),
-    ...createTaskTools(tasksService),
+    ...createTaskTools(tasksService, goalsService),
     ...createSchedulingTools(schedulingService),
     ...createTimeTools(usersRepository),
   };

@@ -29,6 +29,7 @@ describe("createTools", () => {
     update: jest.fn(),
     delete: jest.fn(),
     getProgress: jest.fn(),
+    findInboxId: jest.fn(),
   } as unknown as GoalsService;
 
   const mockTasksService = {
