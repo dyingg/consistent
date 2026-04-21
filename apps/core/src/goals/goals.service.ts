@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -90,10 +91,21 @@ export class GoalsService {
   }
 
   async delete(userId: string, goalId: number) {
-    await this.findById(userId, goalId);
+    const goal = await this.findById(userId, goalId);
+    if (goal.isInbox) {
+      throw new ForbiddenException("The Inbox goal cannot be deleted");
+    }
     const deleted = await this.goalsRepo.delete(goalId);
     this.realtime.broadcastToUser(userId, EVENTS.GOAL_UPDATED, { goalId });
     return deleted;
+  }
+
+  async findInboxId(userId: string): Promise<number> {
+    const inbox = await this.goalsRepo.findInboxByUserId(userId);
+    if (!inbox) {
+      throw new NotFoundException("Inbox goal not found for user");
+    }
+    return inbox.id;
   }
 
   async getProgress(userId: string, goalId: number) {

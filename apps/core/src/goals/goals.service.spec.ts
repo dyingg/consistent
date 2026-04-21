@@ -10,7 +10,11 @@
  * Production code in apps/core has the rule at error and is fully clean.
  */
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 
 jest.mock("../db", () => ({
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory cannot reference outer-scope vars; require() is the documented escape
@@ -53,6 +57,7 @@ describe("GoalsService", () => {
           useValue: {
             findByUserId: jest.fn(),
             findById: jest.fn(),
+            findInboxByUserId: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
@@ -320,6 +325,41 @@ describe("GoalsService", () => {
       goalsRepo.findById.mockResolvedValue(mockGoal as any);
 
       await expect(service.delete(otherUserId, 1)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should throw ForbiddenException when deleting the Inbox goal", async () => {
+      const inbox = { ...mockGoal, isInbox: true };
+      goalsRepo.findById.mockResolvedValue(inbox as any);
+
+      await expect(service.delete(userId, 1)).rejects.toThrow(
+        ForbiddenException,
+      );
+      await expect(service.delete(userId, 1)).rejects.toThrow(
+        "The Inbox goal cannot be deleted",
+      );
+      expect(goalsRepo.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── findInboxId ─────────────────────────────────────────
+
+  describe("findInboxId", () => {
+    it("should return the user's Inbox goal id", async () => {
+      const inbox = { ...mockGoal, id: 42, isInbox: true };
+      goalsRepo.findInboxByUserId.mockResolvedValue(inbox as any);
+
+      const result = await service.findInboxId(userId);
+
+      expect(result).toBe(42);
+      expect(goalsRepo.findInboxByUserId).toHaveBeenCalledWith(userId);
+    });
+
+    it("should throw NotFoundException when the user has no Inbox", async () => {
+      goalsRepo.findInboxByUserId.mockResolvedValue(null);
+
+      await expect(service.findInboxId(userId)).rejects.toThrow(
         NotFoundException,
       );
     });
