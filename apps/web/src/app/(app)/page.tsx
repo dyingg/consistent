@@ -381,27 +381,24 @@ function TodaySection() {
                 }`}
               >
                 {/* Time (start → end) */}
-                <div
-                  className="w-[4.5rem] flex-shrink-0 flex flex-col leading-tight tabular-nums pt-px"
-                  style={{ color: "oklch(40% 0.006 270)" }}
-                >
-                  <span className="text-[0.75rem]">
+                <div className="w-[4.5rem] flex-shrink-0 flex flex-col text-[0.75rem] leading-[1.35] tabular-nums">
+                  <span style={{ color: "oklch(55% 0.008 270)" }}>
                     {formatTime(block.startTime)}
                   </span>
-                  <span className="text-[0.6875rem] opacity-60">
+                  <span style={{ color: "oklch(40% 0.006 270)" }}>
                     {formatTime(block.endTime)}
                   </span>
                 </div>
 
                 {/* Color dot */}
                 <div
-                  className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[7px]"
+                  className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[6px]"
                   style={{ backgroundColor: goalColor }}
                 />
 
                 {/* Checkbox */}
                 <div
-                  className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150 mt-[1px]"
+                  className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150"
                   style={{
                     borderColor: goalColor,
                     backgroundColor: isCompleted ? goalColor : "transparent",
@@ -642,19 +639,16 @@ function ScheduleSection() {
                 const hasDescription = Boolean(block.task.description);
                 return (
                   <div key={block.id} className="flex items-start gap-3 py-1.5">
-                    <div
-                      className="w-[4.5rem] flex-shrink-0 flex flex-col leading-tight tabular-nums pt-px"
-                      style={{ color: "oklch(40% 0.006 270)" }}
-                    >
-                      <span className="text-[0.75rem]">
+                    <div className="w-[4.5rem] flex-shrink-0 flex flex-col text-[0.75rem] leading-[1.35] tabular-nums">
+                      <span style={{ color: "oklch(55% 0.008 270)" }}>
                         {formatTime(block.startTime)}
                       </span>
-                      <span className="text-[0.6875rem] opacity-60">
+                      <span style={{ color: "oklch(40% 0.006 270)" }}>
                         {formatTime(block.endTime)}
                       </span>
                     </div>
                     <div
-                      className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[7px]"
+                      className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-[6px]"
                       style={{ backgroundColor: goalColor }}
                     />
                     <div className="flex-1 min-w-0">
