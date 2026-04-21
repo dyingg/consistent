@@ -1460,8 +1460,7 @@ function AllTaskRowItem({
 
   return (
     <div
-      onClick={() => onToggle(!isCompleted)}
-      className={`group flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-md cursor-pointer transition-colors duration-150 hover:bg-card ${
+      className={`group flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-md transition-colors duration-150 ${
         isCompleted ? "opacity-40" : ""
       }`}
     >
@@ -1482,9 +1481,13 @@ function AllTaskRowItem({
         style={{ backgroundColor: goalColor }}
       />
 
-      {/* Checkbox */}
-      <motion.div
-        className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150 mt-[1px]"
+      {/* Checkbox — only affordance that toggles completion */}
+      <motion.button
+        type="button"
+        onClick={() => onToggle(!isCompleted)}
+        aria-label={isCompleted ? "Mark as not done" : "Mark as done"}
+        aria-pressed={isCompleted}
+        className="w-[1.125rem] h-[1.125rem] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors duration-150 mt-[1px] cursor-pointer"
         style={{
           borderColor: goalColor,
           backgroundColor: isCompleted ? goalColor : "transparent",
@@ -1518,7 +1521,7 @@ function AllTaskRowItem({
             </motion.span>
           )}
         </AnimatePresence>
-      </motion.div>
+      </motion.button>
 
       {/* Title + goal line */}
       <div className="flex-1 min-w-0">
