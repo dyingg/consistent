@@ -50,6 +50,13 @@
       "when": 1776805517557,
       "tag": "0006_goals_is_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776805538710,
+      "tag": "0007_inbox_protection",
+      "breakpoints": true
     }
   ]
 }
