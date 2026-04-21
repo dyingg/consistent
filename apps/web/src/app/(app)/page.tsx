@@ -6,7 +6,7 @@ import { useSession, signOut } from "@/lib/auth-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { useRealtime } from "@/lib/use-realtime";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
   LogOut,
   Check,
@@ -328,6 +328,7 @@ function formatOverdue(ms: number): string {
 function OverdueHero() {
   const today = useMemo(() => new Date(), []);
   const queryClient = useQueryClient();
+  const shouldReduceMotion = useReducedMotion();
   const [completed, setCompleted] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -378,16 +379,46 @@ function OverdueHero() {
   const overdueLabel = formatOverdue(overdueMs);
   const moreCount = overdueBlocks.length - 1;
 
+  const container = shouldReduceMotion
+    ? { hidden: { opacity: 1 }, visible: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0, y: 8 },
+        visible: {
+          opacity: 1,
+          y: 0,
+          transition: {
+            duration: 0.5,
+            ease: easeOutExpo,
+            staggerChildren: 0.07,
+            delayChildren: 0.04,
+          },
+        },
+      };
+
+  const item = shouldReduceMotion
+    ? { hidden: { opacity: 1 }, visible: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0, y: 6 },
+        visible: {
+          opacity: 1,
+          y: 0,
+          transition: { duration: 0.5, ease: easeOutExpo },
+        },
+      };
+
   return (
-    <div>
-      <SectionLabel
-        right={`${formatTime(first.startTime)} – ${formatTime(first.endTime)}`}
-      >
-        Overdue
-      </SectionLabel>
+    <motion.div variants={container} initial="hidden" animate="visible">
+      <motion.div variants={item}>
+        <SectionLabel
+          right={`${formatTime(first.startTime)} – ${formatTime(first.endTime)}`}
+        >
+          Overdue
+        </SectionLabel>
+      </motion.div>
 
       {/* Overdue duration — occupies the Now countdown's slot */}
-      <p
+      <motion.p
+        variants={item}
         className="font-heading text-[3rem] font-light tracking-tight leading-none"
         style={{
           fontVariantNumeric: "tabular-nums",
@@ -395,10 +426,10 @@ function OverdueHero() {
         }}
       >
         {overdueLabel}
-      </p>
+      </motion.p>
 
       {/* Task row — mirrors Now */}
-      <div className="mt-5 flex items-start gap-3.5">
+      <motion.div variants={item} className="mt-5 flex items-start gap-3.5">
         <button
           type="button"
           onClick={() => {
@@ -436,25 +467,35 @@ function OverdueHero() {
             </span>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Fully-expended progress bar */}
-      <div className="mt-6 h-[3px] rounded-full bg-muted overflow-hidden">
+      <motion.div
+        variants={item}
+        className="mt-6 h-[3px] rounded-full bg-muted overflow-hidden"
+      >
         <motion.div
           className="h-full rounded-full"
           style={{ backgroundColor: OVERDUE_COLOR }}
           initial={{ width: 0 }}
           animate={{ width: "100%" }}
-          transition={{ duration: 0.8, ease: easeOutExpo }}
+          transition={{
+            duration: shouldReduceMotion ? 0 : 0.8,
+            delay: shouldReduceMotion ? 0 : 0.35,
+            ease: easeOutExpo,
+          }}
         />
-      </div>
+      </motion.div>
 
       {moreCount > 0 && (
-        <p className="mt-3 text-[0.75rem] text-muted-foreground tabular-nums">
+        <motion.p
+          variants={item}
+          className="mt-3 text-[0.75rem] text-muted-foreground tabular-nums"
+        >
           +{moreCount} more overdue
-        </p>
+        </motion.p>
       )}
-    </div>
+    </motion.div>
   );
 }
 
