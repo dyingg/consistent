@@ -24,6 +24,7 @@ describe("scheduling tools", () => {
     getBlocksForRange: jest.fn(),
     getCurrentBlock: jest.fn(),
     createBlock: jest.fn(),
+    bulkCreateBlocks: jest.fn(),
     updateBlock: jest.fn(),
     shiftBlocks: jest.fn(),
     deleteBlock: jest.fn(),
@@ -50,24 +51,59 @@ describe("scheduling tools", () => {
     expect(svc.getCurrentBlock).toHaveBeenCalledWith("user-123");
   });
 
-  it("create-block normalizes Dates, passes scheduledBy=llm, returns conflicts", async () => {
-    (svc.createBlock as jest.Mock).mockResolvedValue({
-      block: { id: 1 },
+  it("create-blocks normalizes Dates, passes scheduledBy=llm, returns conflicts", async () => {
+    (svc.bulkCreateBlocks as jest.Mock).mockResolvedValue({
+      blocks: [{ id: 1 }],
       conflicts: [],
     });
     const input = {
-      taskId: 42,
-      startTime: "2026-04-17T09:00:00Z",
-      endTime: "2026-04-17T10:00:00Z",
+      blocks: [
+        {
+          taskId: 42,
+          startTime: "2026-04-17T09:00:00Z",
+          endTime: "2026-04-17T10:00:00Z",
+        },
+      ],
     };
-    const result = await tools["create-block"].execute!(input, mockContext);
-    expect(svc.createBlock).toHaveBeenCalledWith("user-123", {
-      taskId: 42,
-      startTime: new Date(input.startTime),
-      endTime: new Date(input.endTime),
-      scheduledBy: "llm",
+    const result = await tools["create-blocks"].execute!(input, mockContext);
+    expect(svc.bulkCreateBlocks).toHaveBeenCalledWith("user-123", [
+      {
+        taskId: 42,
+        startTime: new Date(input.blocks[0]!.startTime),
+        endTime: new Date(input.blocks[0]!.endTime),
+        scheduledBy: "llm",
+      },
+    ]);
+    expect(result).toEqual({ blocks: [{ id: 1 }], conflicts: [] });
+  });
+
+  it("create-blocks forwards multiple entries in a single call", async () => {
+    (svc.bulkCreateBlocks as jest.Mock).mockResolvedValue({
+      blocks: [{ id: 1 }, { id: 2 }],
+      conflicts: [],
     });
-    expect(result).toEqual({ block: { id: 1 }, conflicts: [] });
+    await tools["create-blocks"].execute!(
+      {
+        blocks: [
+          {
+            taskId: 1,
+            startTime: "2026-04-17T09:00:00Z",
+            endTime: "2026-04-17T10:00:00Z",
+          },
+          {
+            taskId: 2,
+            startTime: "2026-04-17T10:00:00Z",
+            endTime: "2026-04-17T11:00:00Z",
+          },
+        ],
+      },
+      mockContext,
+    );
+    const [uid, blocks] = (svc.bulkCreateBlocks as jest.Mock).mock.calls[0];
+    expect(uid).toBe("user-123");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].taskId).toBe(1);
+    expect(blocks[1].taskId).toBe(2);
   });
 
   it("update-block forwards status-only patch to service.updateBlock", async () => {

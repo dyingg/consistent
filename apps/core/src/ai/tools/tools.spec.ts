@@ -46,6 +46,7 @@ describe("createTools", () => {
     getBlocksForRange: jest.fn(),
     getCurrentBlock: jest.fn(),
     createBlock: jest.fn(),
+    bulkCreateBlocks: jest.fn(),
     updateBlock: jest.fn(),
     shiftBlocks: jest.fn(),
     deleteBlock: jest.fn(),
@@ -86,7 +87,7 @@ describe("createTools", () => {
   it("should include all schedule tools", () => {
     expect(tools["get-schedule"]).toBeDefined();
     expect(tools["get-current-block"]).toBeDefined();
-    expect(tools["create-block"]).toBeDefined();
+    expect(tools["create-blocks"]).toBeDefined();
     expect(tools["update-block"]).toBeDefined();
     expect(tools["shift-blocks"]).toBeDefined();
     expect(tools["delete-block"]).toBeDefined();
