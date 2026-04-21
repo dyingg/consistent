@@ -13,6 +13,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { Coach } from "@/components/coach/coach";
 
@@ -40,6 +41,7 @@ interface EnrichedBlock {
   task: {
     id: number;
     title: string;
+    description: string | null;
     status: string;
     goalId: number;
   };
