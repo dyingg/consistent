@@ -57,9 +57,11 @@ export class TasksRepository {
 
   /**
    * Paginated "all tasks" view, joined with the task's goal and the earliest
-   * scheduled block. Completed and cancelled tasks are excluded. Ordered so
-   * unscheduled tasks (NULL earliest_block) surface first, then scheduled
-   * tasks ascending by their next block — newest-created wins ties.
+   * scheduled block. Cancelled tasks are excluded; completed tasks are kept
+   * so the view works as a full task log. Ordered so unscheduled tasks
+   * (NULL earliest_block) surface first, then scheduled tasks ascending by
+   * their next block; within each group, completed tasks sink to the bottom
+   * so pending work stays visible. Newest-created wins final ties.
    */
   async findAllForUserPaginated(
     userId: string,
@@ -95,10 +97,14 @@ export class TasksRepository {
       .where(
         and(
           eq(tasks.userId, userId),
-          notInArray(tasks.status, ["completed", "cancelled"]),
+          notInArray(tasks.status, ["cancelled"]),
         ),
       )
-      .orderBy(sql`${earliestBlock} ASC NULLS FIRST`, desc(tasks.createdAt))
+      .orderBy(
+        sql`${earliestBlock} ASC NULLS FIRST`,
+        sql`CASE WHEN ${tasks.status} = 'completed' THEN 1 ELSE 0 END ASC`,
+        desc(tasks.createdAt),
+      )
       .limit(limit)
       .offset(offset);
   }
