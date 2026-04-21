@@ -17,7 +17,7 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        after: async (user) => {
+        after: async (user, _context) => {
           await db.insert(schema.goals).values({
             userId: user.id,
             title: "Inbox",
